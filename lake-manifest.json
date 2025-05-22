@@ -1,0 +1,15 @@
+{"version": "1.1.0",
+ "packagesDir": ".lake/packages",
+ "packages":
+ [{"url": "https://github.com/leanprover-community/batteries",
+   "type": "git",
+   "subDir": null,
+   "scope": "leanprover-community",
+   "rev": "c8a3a7fc126f5d1fda5368d248f34ee93ab94c17",
+   "name": "batteries",
+   "manifestFile": "lake-manifest.json",
+   "inputRev": "main",
+   "inherited": false,
+   "configFile": "lakefile.toml"}],
+ "name": "qsort",
+ "lakeDir": ".lake"}
