@@ -22,31 +22,24 @@ namespace Monadic
   as := maybeSwap as lo mid
   as := maybeSwap as lo hi
   as := maybeSwap as hi mid
-  let_fun pivot := as.1[hi.cast as.2.symm]
-  let rec
-  /-- Inner loop of `qpartition`, where `as[lo..i]` are less than the pivot and `as[i..j]` are
-  more than the pivot. -/
-  loop (as : {as : Array α // as.size = n}) (i j : Fin n) (H : lo ≤ i ∧ i ≤ j ∧ j ≤ hi) :
-      {as : Array α // as.size = n} × {pivot : Fin n // lo ≤ pivot ∧ pivot ≤ hi} :=
-    have ⟨loi, ij, jhi⟩ := H
-    if h : j < hi then by
-      -- FIXME: if we don't clear these variables, `omega` will revert/intro them
-      -- and as a result `loop` will spuriously depend on the extra `as` variables,
-      -- breaking linearity
-      rename_i as₁ as₂ as₃ as₄; clear as₁ mid as₂ as₃ as₄
-      exact if lt (as.1[j.cast as.2.symm]) pivot then
-        let as := ⟨as.1.swap (i.cast as.2.symm) (j.cast as.2.symm), (Array.size_swap ..).trans as.2⟩
-        loop as ⟨i.1+1, by omega⟩ ⟨j.1+1, by omega⟩
-          ⟨Nat.le_succ_of_le H.1, Nat.succ_le_succ ij, Nat.succ_le_of_lt h⟩
-      else
-        loop as i ⟨j.1+1, by omega⟩ ⟨loi, Nat.le_succ_of_le ij, Nat.succ_le_of_lt h⟩
-    else
-      let as := ⟨as.1.swap (i.cast as.2.symm) (hi.cast as.2.symm), (Array.size_swap ..).trans as.2⟩
-      ⟨as, i, loi, Nat.le_trans ij jhi⟩
-  termination_by hi.1 - j
-  loop as lo lo ⟨Nat.le_refl _, Nat.le_refl _, hle⟩
+  let pivot := as.1[hi.cast as.2.symm]
+  let mut i : Nat := 0
+  let mut pivotIdx : {pivot : Fin n // lo ≤ pivot ∧ pivot ≤ hi} := sorry
+  for j in [lo:hi] do
+    have ⟨loi, ij, jhi⟩ : lo ≤ i ∧ i ≤ j ∧ j ≤ hi := sorry
+    have h : j < hi := sorry
+    if lt (as.1[j]) pivot then
+      as := ⟨as.1.swap i j, (Array.size_swap ..).trans as.2⟩
+      i := i + 1
+  as := ⟨as.1.swap i hi sorry, (Array.size_swap ..).trans as.2⟩
+  pure ⟨as, (Fin.mk i sorry), sorry, sorry⟩
+  -- loop as lo lo ⟨Nat.le_refl _, Nat.le_refl _, hle⟩
 
 
+-- hi - lo > hi - mid - 1
+-- - lo > - mid - 1
+-- lo < mid + 1
+-- hi > mid - 1
 def qsort' {n} (lt : α → α → Bool) (as : {as : Array α // as.size = n})
     (lo : Nat) (hi : Fin n) : Id {as : Array α // as.size = n} := do
   if h : lo < hi.1 then
