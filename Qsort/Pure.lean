@@ -67,8 +67,8 @@ namespace Pure
       panic! "index out of bounds"
   else as
 
-open List
-
+-- open List
+--
 -- namespace QSort
 --
 -- /--
