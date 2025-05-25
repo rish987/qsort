@@ -5,9 +5,9 @@ import Qsort.AuxLemmas
 namespace Monadic
 
 /-- Partitions `as[lo..=hi]`, returning a pivot point and the new array. -/
-@[inline] def qpartition' (as : {as : Array α // as.size = n})
+partial def qpartition' (as : {as : Array α // as.size = n})
     (lt : α → α → Bool) (lo hi : Fin n) (hle : lo ≤ hi) :
-    Id $ {as : Array α // as.size = n} × {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
+    Id $ {as : Array α // as.size = n} × Fin n := do
   let mid : Fin n := ⟨(lo.1 + hi) / 2, by omega⟩
   let rec
   /-- Swaps `lo` and `hi` if needed to ensure `as[lo] ≤ as[hi]`. -/
@@ -45,24 +45,25 @@ namespace Monadic
         inv := ⟨(i, j), hloi, by omega, by omega⟩
   let ⟨(i, _), hloi, hihi, _⟩ := inv
   as := ⟨as.1.swap i hi, (Array.size_swap ..).trans as.2⟩
-  pure ⟨as, ⟨i, hloi, hihi⟩⟩
+  pure ⟨as, ⟨i, by omega⟩⟩
   -- loop as lo lo ⟨Nat.le_refl _, Nat.le_refl _, hle⟩
 
 -- hi - lo > hi - mid - 1
 -- - lo > - mid - 1
 -- lo < mid + 1
 -- hi > mid - 1
-def qsort' {n} (lt : α → α → Bool) (as : {as : Array α // as.size = n})
+partial def qsort' {n} (lt : α → α → Bool) (as : {as : Array α // as.size = n})
     (lo : Nat) (hi : Fin n) : Id {as : Array α // as.size = n} := do
   if h : lo < hi.1 then
-    let ⟨as', mid, (_ : lo ≤ mid), _⟩ :=
+    let ⟨as', mid, _⟩ :=
       qpartition' as lt ⟨lo, Nat.lt_trans h hi.2⟩ hi (Nat.le_of_lt h)
     let mut as := as'
     as := qsort' lt as lo ⟨mid - 1, by omega⟩
     as := qsort' lt as (mid + 1) hi
     pure as
   else as
-termination_by hi - lo
+
+#print qsort'
 
 /-- Sort the array `as[low..=high]` using comparator `lt`. -/
 @[inline] def qsort (as : Array α) (lt : α → α → Bool) :

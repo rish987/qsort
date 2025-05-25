@@ -16,5 +16,6 @@ rev = "v4.18.0"
 
 [[require]]
 name = "mpl"
-git = "https://github.com/sgraf812/mpl"
+# git = "https://github.com/sgraf812/mpl"
+path = "/home/rish/mpl"
 rev = "main"
