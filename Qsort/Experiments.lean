@@ -4,12 +4,9 @@ open MPL
 
 theorem EStateM.by_wp' {α} {x : EStateM.Result ε σ α} {prog : EStateM ε σ α} (h : EStateM.run prog s = x) (P : EStateM.Result ε σ α → Prop) :
   ((wp prog).apply (post⟨fun a s' => P (EStateM.Result.ok a s'), fun e s' => P (EStateM.Result.error e s')⟩) s) → P x := by
-  sorry
-    -- intro hspec
-    -- simp [wp, PredTrans.pure] at hspec
-    -- split at hspec
-    -- case h_1 a s' heq => rw[← heq] at hspec; exact h ▸ hspec
-    -- case h_2 => contradiction
+  intro hspec
+  simp [wp, PredTrans.pure] at hspec
+  split at hspec <;> case _ _ _ heq => rw[← heq] at hspec; exact h ▸ hspec
 
 partial def List.findIndex! (xs : List α) (p : α → Bool) : EStateM Unit Unit Nat := do
   match xs with
@@ -50,20 +47,18 @@ theorem List.__findIndex!_implies_pred_triple
     ⦃⌜True⌝⦄
     f xs p
     ⦃post⟨fun i _ => ∃x, xs[i]? = some x ∧ p x,
-          fun e s => ∀ (i : Nat) x, xs[i]? = some x → ¬ (p x)⟩⦄)
+          fun _ _ => ∀ (i : Nat) x, xs[i]? = some x → ¬ (p x)⟩⦄)
   :
     ⦃⌜True⌝⦄
     List.__findIndex! f xs p
     ⦃post⟨fun i _ => ∃x, xs[i]? = some x ∧ p x,
-          fun e s => ∀ (i : Nat) x, xs[i]? = some x → ¬ (p x)⟩⦄ := by
+          fun _ _ => ∀ (i : Nat) x, xs[i]? = some x → ¬ (p x)⟩⦄ := by
   simp_all only [Bool.not_eq_true]
   unfold __findIndex!
   mintro - ∀s
-  split
-  . mwp
-    simp
+  split <;> mwp
+  simp
   next y ys =>
-  mwp
   split
   . simpa
   next hn =>
@@ -109,3 +104,37 @@ theorem List.__findIndex!_implies_pred
 -- #print List.findIndex.partial_correctness
 --
 #eval (List.findIndex! ["a", "b", "c"] fun s => s == "b").run ()
+
+partial def List.findIndex? (xs : List α) (p : α → Bool) : Option Nat := do
+  match xs with
+  | [] => none
+  | x::ys => do
+    if p x then
+      pure 0
+    else
+      let r ← List.findIndex? ys p
+      pure (r + 1)
+-- partial_fixpoint
+
+#eval List.findIndex? ["a", "b", "c"] fun s => s == "b"
+-- some 1
+
+def List.findIndex?_fmap (f : (xs : List α) → (p : α → Bool) → Option Nat) (xs : List α) (p : α → Bool) : Option Nat := do
+  match xs with
+  | [] => none
+  | x::ys =>
+    if p x then
+      pure 0
+    else
+      let r ← f ys p
+      pure (r + 1)
+
+def List.findIndex?_fmap.partial_correctness (motive : List α → (α → Bool) → Unit → _ → Prop)
+  (hf : ∃ f, List.findIndex?_fmap f = f)
+  (h :
+    ∀ (f : List α → (α → Bool) → Option Nat),
+      (∀ (xs : List α) (p : α → Bool) (r : Nat), f xs p = r → motive xs p s r) →
+        ∀ (xs : List α) (p : α → Bool) (s : Unit) (r : Nat),
+          List.findIndex?_fmap f xs p = r →
+            motive xs p s r)
+  (xs : List α) (p : α → Bool) (s : Unit) (r : Nat) : hf.choose xs p = r → motive xs p s r := sorry
