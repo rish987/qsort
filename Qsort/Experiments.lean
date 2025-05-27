@@ -125,7 +125,7 @@ def List.findIndexT! (xs : List α) (p : α → Bool) : EStateM Unit Unit Nat :=
     if p x then
       pure 0
     else
-      let r ← List.findIndex! ys p
+      let r ← List.findIndexT! ys p
       pure (r + 1)
 
 theorem List.findIndexT!_implies_pred
@@ -151,10 +151,10 @@ theorem List.findIndexT!_implies_pred
         by
           unfold findIndex!_fmap
           simp [h]
-          unfold findIndexT!
-          simp
-          simp [h]
-          sorry -- how to rewrite only RHS?
+          conv =>
+            rhs
+            unfold findIndexT!
+            simp [h]
         -- let r ← List.findIndex! ys p
         -- pure (r + 1)
 
