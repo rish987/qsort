@@ -128,6 +128,26 @@ def List.findIndexT! (xs : List α) (p : α → Bool) : EStateM Unit Unit Nat :=
       let r ← List.findIndexT! ys p
       pure (r + 1)
 
+theorem List.findIndexT!_eq_fmap : List.findIndex!_fmap (α := α) List.findIndexT! = List.findIndexT! := by
+  ext xs p
+  refine match xs with
+  | [] => by rfl
+  | x::ys =>
+    if h : p x then
+      by
+        unfold findIndex!_fmap
+        simp [h]
+        unfold findIndexT!
+        simp [h]
+    else
+      by
+        unfold findIndex!_fmap
+        simp [h]
+        conv =>
+          rhs
+          unfold findIndexT!
+          simp [h]
+
 theorem List.findIndexT!_implies_pred
   (xs : List α) (p : α → Bool) :
   (findIndexT! xs p).run () = r →
@@ -135,28 +155,7 @@ theorem List.findIndexT!_implies_pred
     ∃x, xs[i]? = some x ∧ p x
   else
     ∀ (i : Nat) x, xs[i]? = some x → ¬ (p x)
-  := by
-    refine List.findIndex!_fmap_implies_pred List.findIndexT! ?_ xs p
-    ext xs p
-    refine match xs with
-    | [] => by rfl
-    | x::ys =>
-      if h : p x then
-        by
-          unfold findIndex!_fmap
-          simp [h]
-          unfold findIndexT!
-          simp [h]
-      else
-        by
-          unfold findIndex!_fmap
-          simp [h]
-          conv =>
-            rhs
-            unfold findIndexT!
-            simp [h]
-        -- let r ← List.findIndex! ys p
-        -- pure (r + 1)
+  := List.findIndex!_fmap_implies_pred List.findIndexT! List.findIndexT!_eq_fmap xs p
 
 theorem List.findIndexT!_implies_pred_triple
   (xs : List α) (p : α → Bool)
@@ -166,16 +165,30 @@ theorem List.findIndexT!_implies_pred_triple
           fun _ _ => ∀ (i : Nat) x, xs[i]? = some x → ¬ (p x)⟩⦄ := by
   induction xs <;> mintro - ∀_; unfold findIndexT! ; mwp
   simp
-  next ih _ =>
+  next tail ih _ =>
   unfold findIndexT!
   split
-  contradiction
+  . simpa
   mwp
-  next heq =>
-  split
-  simp_all
-  rcases heq
-  mspec ih _ b -- FIXME why is there an error only when both args are holes? (also, there should be an error here since `b` is not a valid binder)
+  next hn =>
+  simp at hn
+  mspec ih
+  mintro ∀_
+  mpure h
+  mpure_intro
+  intros i x
+  cases i with
+  | zero =>
+    simp
+    rintro rfl
+    assumption
+  | succ n =>
+    simp
+    have := h n x
+    simp at this
+    assumption
+  massumption
+  -- mspec ih _ b -- FIXME why is there an error only when both args are holes? (also, there should be an error here since `b` is not a valid binder)
 
 theorem List.findIndexT!_implies_pred'
   (xs : List α) (p : α → Bool) :
@@ -197,22 +210,114 @@ theorem List.findIndexT!_implies_pred'
 #eval (List.findIndexT! ["a", "b", "c"] fun s => s == "b").run ()
 -- some 1
 
--- def List.findIndex?_fmap (f : (xs : List α) → (p : α → Bool) → Option Nat) (xs : List α) (p : α → Bool) : Option Nat := do
---   match xs with
---   | [] => none
---   | x::ys =>
---     if p x then
---       pure 0
---     else
---       let r ← f ys p
---       pure (r + 1)
---
--- def List.findIndex?_fmap.partial_correctness (motive : List α → (α → Bool) → Unit → _ → Prop)
---   (hf : ∃ f, List.findIndex?_fmap f = f)
---   (h :
---     ∀ (f : List α → (α → Bool) → Option Nat),
---       (∀ (xs : List α) (p : α → Bool) (r : Nat), f xs p = r → motive xs p s r) →
---         ∀ (xs : List α) (p : α → Bool) (s : Unit) (r : Nat),
---           List.findIndex?_fmap f xs p = r →
---             motive xs p s r)
---   (xs : List α) (p : α → Bool) (s : Unit) (r : Nat) : hf.choose xs p = r → motive xs p s r := sorry
+partial def List.findIndex? (xs : List α) (p : α → Bool) : Option Nat := do
+  match xs with
+  | [] => none
+  | x::ys => do
+    if p x then
+      pure 0
+    else
+      let r ← List.findIndex? ys p
+      pure (r + 1)
+-- partial_fixpoint
+
+#eval List.findIndex? ["a", "b", "c"] fun s => s == "b"
+-- some 1
+
+def List.findIndex?_fmap (f : (xs : List α) → (p : α → Bool) → Option Nat) (xs : List α) (p : α → Bool) : Option Nat := do
+  match xs with
+  | [] => none
+  | x::ys =>
+    if p x then
+      pure 0
+    else
+      let r ← f ys p
+      pure (r + 1)
+
+def List.findIndex?_fmap.partial_correctness (motive : List α → (α → Bool) → Option Nat → Prop)
+  (f : List α → (α → Bool) → Option Nat)
+  (hf : List.findIndex?_fmap f = f)
+  (h :
+    ∀ (f : List α → (α → Bool) → Option Nat),
+      (∀ (xs : List α) (p : α → Bool) (r : Option Nat), f xs p = r → motive xs p r) →
+        ∀ (xs : List α) (p : α → Bool) (s : Unit) (r : Option Nat),
+          List.findIndex?_fmap f xs p = r →
+            motive xs p r)
+  (xs : List α) (p : α → Bool) (r : Option Nat) : f xs p = r → motive xs p r := sorry
+
+def List.findIndexT? (xs : List α) (p : α → Bool) : Option Nat := do
+  match xs with
+  | [] => none
+  | x::ys => do
+    if p x then
+      pure 0
+    else
+      let r ← List.findIndexT? ys p
+      pure (r + 1)
+
+theorem List.findIndexT?_eq_fmap : List.findIndex?_fmap (α := α) List.findIndexT? = List.findIndexT? := by
+  ext xs p
+  refine match xs with
+  | [] => by rfl
+  | x::ys =>
+    if h : p x then
+      by
+        unfold findIndex?_fmap
+        simp [h]
+        unfold findIndexT?
+        simp [h]
+    else
+      by
+        unfold findIndex?_fmap
+        simp [h]
+        conv =>
+          rhs
+          unfold findIndexT?
+          simp [h]
+
+-- main proof
+def List.findIndex?_prf
+  (f : List α → (α → Bool) → Option Nat)
+  (xs : List α) (p : α → Bool) (r : Option Nat)
+  (ih : ∀ (xs : List α) (p : α → Bool) (r : Option Nat),
+    f xs p = r →
+    match r with
+    | some i => ∃ x, xs[i]? = some x ∧ p x = true
+    | x => ∀ (i : Nat) (x : α), xs[i]? = some x → ¬p x = true)
+        
+  :
+    if let some i := List.findIndex?_fmap f xs p then
+      ∃x, xs[i]? = some x ∧ p x
+    else
+      ∀ (i : Nat) x, xs[i]? = some x → ¬ (p x) := by
+  sorry
+
+theorem List.findIndex?_fmap_implies_pred
+  (f : List α → (α → Bool) → Option Nat)
+  (hf : List.findIndex?_fmap f = f)
+  (xs : List α) (p : α → Bool) :
+  f xs p = r →
+  if let some i := r then
+    ∃x, xs[i]? = some x ∧ p x
+  else
+    ∀ (i : Nat) x, xs[i]? = some x → ¬ (p x)
+  := by
+    refine List.findIndex?_fmap.partial_correctness (fun xs p r => 
+      if let some i := r then
+        ∃x, xs[i]? = some x ∧ p x
+      else
+        ∀ (i : Nat) x, xs[i]? = some x → ¬ (p x)
+      ) f hf (fun f ih => ?_) xs p r
+    intros xs p s r h
+    subst r
+    exact List.findIndex?_prf f xs p r ih
+
+
+theorem List.findIndexT?_implies_pred
+  (xs : List α) (p : α → Bool) :
+  (findIndexT? xs p) = r →
+  if let some i := r then
+    ∃x, xs[i]? = some x ∧ p x
+  else
+    ∀ (i : Nat) x, xs[i]? = some x → ¬ (p x)
+  := List.findIndex?_fmap_implies_pred List.findIndexT? List.findIndexT?_eq_fmap xs p
