@@ -8,7 +8,7 @@ theorem EStateM.by_wp' {α} {x : EStateM.Result ε σ α} {prog : EStateM ε σ 
   simp [wp, PredTrans.pure] at hspec
   split at hspec <;> case _ _ _ heq => rw[← heq] at hspec; exact h ▸ hspec
 
-partial def List.findIndex! (xs : List α) (p : α → Bool) : EStateM Unit Unit Nat := do
+def List.findIndex! (xs : List α) (p : α → Bool) : EStateM Unit Unit Nat := do
   match xs with
   | [] => throw ()
   | x::ys => do
@@ -17,9 +17,11 @@ partial def List.findIndex! (xs : List α) (p : α → Bool) : EStateM Unit Unit
     else
       let r ← List.findIndex! ys p
       pure (r + 1)
--- partial_fixpoint
+partial_fixpoint
 
-def List.findIndex!_fmap (f : (xs : List α) → (p : α → Bool) → EStateM Unit Unit Nat) (xs : List α) (p : α → Bool) : EStateM Unit Unit Nat := do
+def List.findIndex!_fmap
+  (f : (xs : List α) → (p : α → Bool) → EStateM Unit Unit Nat)
+  (xs : List α) (p : α → Bool) : EStateM Unit Unit Nat := do
   match xs with
   | [] => throw ()
   | x::ys =>
@@ -220,6 +222,26 @@ partial def List.findIndex? (xs : List α) (p : α → Bool) : Option Nat := do
       let r ← List.findIndex? ys p
       pure (r + 1)
 -- partial_fixpoint
+
+def List.findIndex'? (xs : List α) (p : α → Bool) : Option Nat := do
+  match xs with
+  | [] => none
+  | x::ys => do
+    if p x then
+      pure 0
+    else
+      let r ← List.findIndex'? ys p
+      pure (r + 1)
+partial_fixpoint
+
+-- #print List.findIndex'?.partial_correctness
+#print List.findIndex'?.fixpoint_induct
+#print Lean.Order.fix_induct
+
+axiom fixpoint_rec (F : α → α) (f : α) (hf : F f = f) (motive : α → Prop)
+  (ih : ∀ (g : α), motive g → motive (F g)) : motive f
+example : False := by
+  refine fixpoint_rec (fun x => x) 0 rfl (fun _ => False) fun _ h => h
 
 #eval List.findIndex? ["a", "b", "c"] fun s => s == "b"
 -- some 1
