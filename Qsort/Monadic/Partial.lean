@@ -2,7 +2,7 @@ import Batteries.Data.List.Perm
 import Batteries.Data.List.Lemmas
 import Qsort.AuxLemmas
 
-namespace Monadic
+namespace Partial
 
 /-- Partitions `as[lo..=hi]`, returning a pivot point and the new array. -/
 partial def qpartition' (as : {as : Array α // as.size = n})

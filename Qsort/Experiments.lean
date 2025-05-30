@@ -8,7 +8,7 @@ theorem EStateM.by_wp' {α} {x : EStateM.Result ε σ α} {prog : EStateM ε σ 
   simp [wp, PredTrans.pure] at hspec
   split at hspec <;> case _ _ _ heq => rw[← heq] at hspec; exact h ▸ hspec
 
-def List.findIndex! (xs : List α) (p : α → Bool) : EStateM Unit Unit Nat := do
+partial def List.findIndex! (xs : List α) (p : α → Bool) : EStateM Unit Unit Nat := do
   match xs with
   | [] => throw ()
   | x::ys => do
@@ -17,7 +17,7 @@ def List.findIndex! (xs : List α) (p : α → Bool) : EStateM Unit Unit Nat := 
     else
       let r ← List.findIndex! ys p
       pure (r + 1)
-partial_fixpoint
+-- partial_fixpoint
 
 def List.findIndex!_fmap
   (f : (xs : List α) → (p : α → Bool) → EStateM Unit Unit Nat)

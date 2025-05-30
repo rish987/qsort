@@ -10,7 +10,7 @@ def main : IO Unit := do
   let max := 1
   -- let max := 1000000000
   for i in [0:max + 1] do
-    let ret : Array Nat ← pure $ Monadic.qsort l (Nat.blt) 
+    let ret : Array Nat ← pure $ Monadic.qsort l (Nat.blt) |>.run
     if i == max then
       dbg_trace s!"DBG[35]: Main.lean:12 {ret}"
   dbg_trace s!"DBG[32]: Main.lean:9 (after l := Monadic.qsort l (Nat.blt))"
