@@ -77,6 +77,17 @@ termination_by hi - lo
     pure (← qsort' lt ⟨xs, rfl⟩ 0 ⟨xs.size - 1, by omega⟩).1
   else pure xs
 
+theorem qpartition_triple (xs : {xs : Array α // xs.size = n})
+    (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi) {L M R}
+    (hlo : L.length = lo.1) (hhi : lo.1 + M.length = hi + 1)
+    (hxs : xs.1.toList = L ++ M ++ R)
+    :
+   ⦃⌜True⌝⦄
+   qpartition' xs lt lo hi hle
+   ⦃⇓ (xs', pivot) => ∃ (M' l r : List α) (a : α),
+     M' = l ++ a::r ∧ xs'.1.toList = L ++ M' ++ R ∧ (∀ b ∈ l, ¬lt a b) ∧ (∀ b ∈ r, ¬lt b a)⦄ := by
+  sorry
+
 theorem sorted_triple' (xs : {xs : Array α // xs.size = n})
     (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : lo + M.length = hi + 1)
     (hxs : xs.1.toList = L ++ M ++ R)
@@ -88,7 +99,16 @@ theorem sorted_triple' (xs : {xs : Array α // xs.size = n})
   mintro -
   mwp
   split
-  sorry
+  -- TODO fix bug of state not changing/no errmsg when changing angle brackets to parens
+  . mspec (qpartition_triple _ _ _ _ hlo hhi hxs)
+    mpure h
+    rcases r with ⟨xs', pivot⟩
+    rcases h with ⟨M', l, r, a, hM', hxs', hl, hr⟩
+    split
+    next as' mid hmlo hmhi _ =>
+    -- cases
+    -- mwp
+    sorry
   have : lo = hi := sorry
   have : M.length = 1 := by omega
   mpure_intro -- TODO should automatically remove `spred`
