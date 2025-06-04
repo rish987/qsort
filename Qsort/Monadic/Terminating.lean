@@ -57,16 +57,24 @@ namespace Monadic
 -- lo < mid + 1
 -- hi > mid - 1
 def qsort' {n} (lt : α → α → Bool) (xs : {xs : Array α // xs.size = n})
-    (lo : Nat) (hi : Fin n) : Idd {xs : Array α // xs.size = n} := do
-  if h : lo < hi.1 then
+    (lo : Nat) (hi : Fin n) (hiOff : Nat := 0) : Idd {xs : Array α // xs.size = n} := do
+  let newHi : Fin n := ⟨hi - hiOff, by omega⟩
+  if h : lo < newHi.1 then
     let ⟨as', mid, (_ : lo ≤ mid), _⟩ ←
-      qpartition' xs lt ⟨lo, Nat.lt_trans h hi.2⟩ hi (Nat.le_of_lt h)
+      qpartition' xs lt ⟨lo, Nat.lt_trans h newHi.2⟩ newHi (Nat.le_of_lt h)
     let mut xs := as'
-    xs ← qsort' lt xs lo ⟨mid - 1, by omega⟩
-    xs ← qsort' lt xs (mid + 1) hi
+    xs ← qsort' lt xs lo ⟨mid, by omega⟩ 1
+    xs ← qsort' lt xs (mid + 1) newHi
     pure xs
   else pure xs
-termination_by hi - lo
+termination_by (hi - hiOff) - lo
+decreasing_by
+  unfold newHi at *
+  simp_all
+  omega
+  unfold newHi at *
+  simp_all
+  omega
 #print qsort'._unary
 #print qsort'.eq_def
 
@@ -85,6 +93,7 @@ theorem qpartition_triple (xs : {xs : Array α // xs.size = n})
    ⦃⌜True⌝⦄
    qpartition' xs lt lo hi hle
    ⦃⇓ (xs', pivot) => ∃ (M' l r : List α) (a : α),
+     lo + l.length = pivot ∧
      M' = l ++ a::r ∧ xs'.1.toList = L ++ M' ++ R ∧ (∀ b ∈ l, ¬lt a b) ∧ (∀ b ∈ r, ¬lt b a)⦄ := by
   sorry
 
@@ -105,9 +114,16 @@ theorem sorted_triple' (xs : {xs : Array α // xs.size = n})
     rcases r with ⟨xs', pivot⟩
     rcases h with ⟨M', l, r, a, hM', hxs', hl, hr⟩
     split
-    next as' mid hmlo hmhi _ =>
+    next as' mid hmlo hmhi heq =>
+    simp at heq
+    simp_all [heq.1]
     -- cases
     -- mwp
+    have :
+     ⦃⌜True⌝⦄
+     qsort' lt as' lo ⟨mid - 1, by omega⟩
+     ⦃⇓ ret => ∃ M', ret.1.toList = L ++ M' ++ (r ++ R) ∧ M'.Pairwise (fun a b => ¬lt b a)⦄ :=
+     (sorted_triple' xs lo ⟨mid - 1, by omega⟩ L l (r ++ R) rfl (by simp; omega) (by simp))
     sorry
   have : lo = hi := sorry
   have : M.length = 1 := by omega
