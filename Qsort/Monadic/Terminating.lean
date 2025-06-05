@@ -4,6 +4,7 @@ import Batteries.Data.List.Lemmas
 import Qsort.AuxLemmas
 
 open MPL
+open List
 
 namespace Monadic
 
@@ -105,6 +106,11 @@ theorem qpartition_triple (xs : {xs : Array α // xs.size = n})
 --    qsort' lt xs lo hi
 --    ⦃⇓ xs' => ∃ M', xs'.1.toList = L ++ M' ++ R ∧ M'.Pairwise (fun a b => ¬lt b a)⦄ := by
 
+/-- `PermStabilizing lo hi as as'` asserts that `as` and `as'` are permutations of each other,
+and moreover they agree outside the range `lo..hi`. -/
+def PermStabilizing (lo hi : Nat) (xs xs' : Vector α n) :=
+  xs.toList ~ xs'.toList ∧ ∀ i : Fin n, ¬(lo ≤ i ∧ i < hi) → xs.get i = xs'.get i
+
 theorem sorted_triple' (xs : {xs : Array α // xs.size = n})
     (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : M.length > 0 → lo + M.length = hi + 1)
     (hxs : xs.1.toList = L ++ M ++ R)
@@ -148,7 +154,20 @@ theorem sorted_triple' (xs : {xs : Array α // xs.size = n})
        ⦃⇓ ret => ∃ rt', rt'.length = rt.length ∧ ret.1.toList = (L ++ l' ++ [a]) ++ rt' ++ R ∧ rt'.Pairwise (fun a b => ¬lt b a)⦄ :=
        (sorted_triple' (lt := lt) r (mid + 1) hi (L ++ l' ++ [a]) rt R (by simp; subst hlo; rw [hl'eq]; omega) (by simp; omega) (by simpa))
       mspec this
-      sorry
+      mwp
+      mpure h
+      mpure_intro
+      simp
+      simp at h
+      rcases h with ⟨rt', hrt'eq, hrt'dec, hrt'sorted⟩
+      refine ⟨l' ++ a::rt', sorry, by simpa, ?_⟩
+      simp only [pairwise_append]
+      simp only [pairwise_cons]
+      -- simp only [forall_mem_cons, l'.mem_iff_get, rt'.mem_iff_get]
+      simp only [forall_mem_cons]
+      simp at hl'sorted
+      exact ⟨hl'sorted, ⟨sorry, hrt'sorted⟩, sorry⟩
+      -- simp only [pairwise_append, pairwise_cons, forall_mem_cons, rr.mem_iff, ll.mem_iff]
     have : lo = hi := sorry
     have : M.length = 1 := by omega
     mpure_intro -- TODO should automatically remove `spred`
