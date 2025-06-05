@@ -57,24 +57,23 @@ namespace Monadic
 -- lo < mid + 1
 -- hi > mid - 1
 def qsort' {n} (lt : α → α → Bool) (xs : {xs : Array α // xs.size = n})
-    (lo : Nat) (hi : Fin n) (hiOff : Nat := 0) : Idd {xs : Array α // xs.size = n} := do
-  let newHi : Fin n := ⟨hi - hiOff, by omega⟩
-  if h : lo < newHi.1 then
+    (lo : Nat) (hi : Fin n) : Idd {xs : Array α // xs.size = n} := do
+  if h : lo < hi.1 then
     let ⟨as', mid, (_ : lo ≤ mid), _⟩ ←
-      qpartition' xs lt ⟨lo, Nat.lt_trans h newHi.2⟩ newHi (Nat.le_of_lt h)
+      qpartition' xs lt ⟨lo, Nat.lt_trans h hi.2⟩ hi (Nat.le_of_lt h)
     let mut xs := as'
-    xs ← qsort' lt xs lo ⟨mid, by omega⟩ 1
-    xs ← qsort' lt xs (mid + 1) newHi
+    xs ← qsort' lt xs lo ⟨mid - 1, by omega⟩
+    xs ← qsort' lt xs (mid + 1) hi
     pure xs
   else pure xs
-termination_by (hi - hiOff) - lo
-decreasing_by
-  unfold newHi at *
-  simp_all
-  omega
-  unfold newHi at *
-  simp_all
-  omega
+termination_by hi - lo
+-- decreasing_by
+--   unfold newHi at *
+--   simp_all
+--   omega
+--   unfold newHi at *
+--   simp_all
+--   omega
 #print qsort'._unary
 #print qsort'.eq_def
 
@@ -92,47 +91,75 @@ theorem qpartition_triple (xs : {xs : Array α // xs.size = n})
     :
    ⦃⌜True⌝⦄
    qpartition' xs lt lo hi hle
-   ⦃⇓ (xs', pivot) => ∃ (M' l r : List α) (a : α),
+   ⦃⇓ (xs', pivot) => ∃ (l r : List α) (a : α),
+     M.length = l.length + 1 + r.length ∧
      lo + l.length = pivot ∧
-     M' = l ++ a::r ∧ xs'.1.toList = L ++ M' ++ R ∧ (∀ b ∈ l, ¬lt a b) ∧ (∀ b ∈ r, ¬lt b a)⦄ := by
+     xs'.1.toList = L ++ l ++ a::r ++ R ∧ (∀ b ∈ l, ¬lt a b) ∧ (∀ b ∈ r, ¬lt b a)⦄ := by
   sorry
 
+-- theorem sorted_triple_aux' (xs : {xs : Array α // xs.size = n})
+--     (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : lo = hi)
+--     (hxs : xs.1.toList = L ++ M ++ R)
+--     :
+--    ⦃⌜True⌝⦄
+--    qsort' lt xs lo hi
+--    ⦃⇓ xs' => ∃ M', xs'.1.toList = L ++ M' ++ R ∧ M'.Pairwise (fun a b => ¬lt b a)⦄ := by
+
 theorem sorted_triple' (xs : {xs : Array α // xs.size = n})
-    (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : lo + M.length = hi + 1)
+    (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : M.length > 0 → lo + M.length = hi + 1)
     (hxs : xs.1.toList = L ++ M ++ R)
     :
    ⦃⌜True⌝⦄
    qsort' lt xs lo hi
-   ⦃⇓ xs' => ∃ M', xs'.1.toList = L ++ M' ++ R ∧ M'.Pairwise (fun a b => ¬lt b a)⦄ := by
-  unfold qsort'
-  mintro -
-  mwp
-  split
-  -- TODO fix bug of state not changing/no errmsg when changing angle brackets to parens
-  . mspec (qpartition_triple _ _ _ _ hlo hhi hxs)
-    mpure h
-    rcases r with ⟨xs', pivot⟩
-    rcases h with ⟨M', l, r, a, hM', hxs', hl, hr⟩
+   ⦃⇓ xs' => ∃ M', M'.length = M.length ∧ xs'.1.toList = L ++ M' ++ R ∧ M'.Pairwise (fun a b => ¬lt b a)⦄ := by
+  if hM : M.length > 0 then
+    unfold qsort'
+    mintro -
+    mwp
     split
-    next as' mid hmlo hmhi heq =>
-    simp at heq
-    simp_all [heq.1]
-    -- cases
-    -- mwp
-    have :
-     ⦃⌜True⌝⦄
-     qsort' lt as' lo ⟨mid - 1, by omega⟩
-     ⦃⇓ ret => ∃ M', ret.1.toList = L ++ M' ++ (r ++ R) ∧ M'.Pairwise (fun a b => ¬lt b a)⦄ :=
-     (sorted_triple' xs lo ⟨mid - 1, by omega⟩ L l (r ++ R) rfl (by simp; omega) (by simp))
+    -- TODO fix bug of state not changing/no errmsg when changing angle brackets to parens
+    . mspec (qpartition_triple _ _ _ _ hlo (hhi hM) hxs)
+      mpure h
+      rcases r with ⟨xs', pivot⟩
+      rcases h with ⟨l, rt, a, hMlrt, hM', hxs', hl, hrt⟩
+      split
+      next as' mid hmlo hmhi heq =>
+      simp at heq
+      rcases heq.1
+      rcases heq.2
+      simp at hM'
+      simp at hxs'
+      -- cases
+      -- mwp
+      have :
+       ⦃⌜True⌝⦄
+       qsort' lt xs' lo ⟨mid - 1, by omega⟩
+       ⦃⇓ ret => ∃ l', l'.length = l.length ∧ ret.1.toList = L ++ l' ++ (a::rt ++ R) ∧ l'.Pairwise (fun a b => ¬lt b a)⦄ :=
+       (sorted_triple' (lt := lt) xs' lo ⟨mid - 1, by omega⟩ L l (a::rt ++ R) (by assumption) (by
+         simp
+         omega) (by simp_all))
+      mspec this
+      mpure h
+      rcases h with ⟨l', hl'eq, hl'dec, hl'sorted⟩
+      simp at hl'dec
+      have :
+       ⦃⌜True⌝⦄
+       qsort' lt r (mid + 1) hi
+       ⦃⇓ ret => ∃ rt', rt'.length = rt.length ∧ ret.1.toList = (L ++ l' ++ [a]) ++ rt' ++ R ∧ rt'.Pairwise (fun a b => ¬lt b a)⦄ :=
+       (sorted_triple' (lt := lt) r (mid + 1) hi (L ++ l' ++ [a]) rt R (by simp; subst hlo; rw [hl'eq]; omega) (by simp; omega) (by simpa))
+      mspec this
+      sorry
+    have : lo = hi := sorry
+    have : M.length = 1 := by omega
+    mpure_intro -- TODO should automatically remove `spred`
+    simp only [Bool.not_eq_true, SPred.and_nil, SPred.exists_nil]
+    refine ⟨M, sorry, hxs, ?_⟩
+    have : ∃ x, M = [x] := by sorry
+    rw [this.choose_spec]
+    simp
+  else
     sorry
-  have : lo = hi := sorry
-  have : M.length = 1 := by omega
-  mpure_intro -- TODO should automatically remove `spred`
-  simp only [Bool.not_eq_true, SPred.and_nil, SPred.exists_nil]
-  refine ⟨M, hxs, ?_⟩
-  have : ∃ x, M = [x] := by sorry
-  rw [this.choose_spec]
-  simp
+termination_by hi - lo
 
 theorem sorted_triple (xs : Array α) :
    ⦃⌜True⌝⦄
@@ -148,11 +175,13 @@ theorem sorted_triple (xs : Array α) :
     have :
      ⦃⌜True⌝⦄
      qsort' lt ⟨xs, rfl⟩ 0 ⟨xs.size - 1, by omega⟩
-     ⦃⇓ xs' => ∃ M', xs'.1.toList = [] ++ M' ++ [] ∧ M'.Pairwise (fun a b => ¬lt b a)⦄ :=
+     ⦃⇓ xs' => ∃ M', M'.length = xs.toList.length ∧ xs'.1.toList = [] ++ M' ++ [] ∧ M'.Pairwise (fun a b => ¬lt b a)⦄ :=
      (sorted_triple' ⟨xs, rfl⟩ 0 ⟨xs.size - 1, by omega⟩ [] xs.toList [] rfl (by simp; omega) (by simp))
     mspec this
     mpure h
     simp_all
+    rcases h with ⟨_, _, h, r⟩
+    simpa [h]
   . next h =>
     simp at h
     subst h
