@@ -4,20 +4,47 @@ import Batteries.Data.List.Lemmas
 import Qsort.AuxLemmas
 
 open MPL
+
+namespace MPL
+variable (T S : Type)
+abbrev ps := (PostShape.arg S PostShape.pure)
+
+variable (FPre FPre1 FPre2 : Assertion (ps S))
+variable (FPost1 FPost2 : PostCond T (ps S))
+
+variable (F : StateM S T)
+variable (hF1 : ⦃FPre1⦄ F ⦃FPost1⦄)
+variable (hF2 : ⦃FPre2⦄ F ⦃FPost2⦄)
+variable (test : ⦃FPre⦄ F ⦃FPost1.and FPost2⦄)
+variable (hFF1 : FPre ⊢ₛ FPre1)
+variable (hFF1 : FPre ⊢ₛ FPre2)
+
+
+theorem multiEntails 
+(hF1 : ⦃FPre1⦄ F ⦃FPost1⦄) (hF2 : ⦃FPre2⦄ F ⦃FPost2⦄) (hFF1 : FPre ⊢ₛ FPre1) (hFF1 : FPre ⊢ₛ FPre2)
+ : ⦃FPre⦄ F ⦃FPost1.and FPost2⦄ := by
+  sorry
+
 open List
 
 namespace Monadic
 
+abbrev Vector (α n) := {xs : Array α // xs.size = n}
+
+def Vector.get (xs : Vector α n) (i : Fin n) := xs.1.get i (i.cast xs.2.symm).2
+
+def Vector.toList (xs : Vector α n) : List α := xs.1.toList
+
 -- FIXME why do `xs` binders produce errors when importing MPL
 /-- Partitions `xs[lo..=hi]`, returning a pivot point and the new array. -/
-@[inline] def qpartition' (xs : {xs : Array α // xs.size = n})
+@[inline] def qpartition' (xs : Vector α n)
     (lt : α → α → Bool) (lo hi : Fin n) (hle : lo ≤ hi) :
-    Idd $ {xs : Array α // xs.size = n} × {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
+    Idd $ Vector α n × {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
   let mid : Fin n := ⟨(lo.1 + hi) / 2, by omega⟩
   let rec
   /-- Swaps `lo` and `hi` if needed to ensure `xs[lo] ≤ xs[hi]`. -/
   @[inline] maybeSwap
-      (xs : {xs : Array α // xs.size = n}) (lo hi : Fin n) : {xs : Array α // xs.size = n} :=
+      (xs : Vector α n) (lo hi : Fin n) : Vector α n :=
     let hi := hi.cast xs.2.symm
     let lo := lo.cast xs.2.symm
     if lt (xs.1[hi]) (xs.1[lo]) then
@@ -57,8 +84,8 @@ namespace Monadic
 -- - lo > - mid - 1
 -- lo < mid + 1
 -- hi > mid - 1
-def qsort' {n} (lt : α → α → Bool) (xs : {xs : Array α // xs.size = n})
-    (lo : Nat) (hi : Fin n) : Idd {xs : Array α // xs.size = n} := do
+def qsort' {n} (lt : α → α → Bool) (xs : Vector α n)
+    (lo : Nat) (hi : Fin n) : Idd (Vector α n) := do
   if h : lo < hi.1 then
     let ⟨as', mid, (_ : lo ≤ mid), _⟩ ←
       qpartition' xs lt ⟨lo, Nat.lt_trans h hi.2⟩ hi (Nat.le_of_lt h)
@@ -85,7 +112,7 @@ termination_by hi - lo
     pure (← qsort' lt ⟨xs, rfl⟩ 0 ⟨xs.size - 1, by omega⟩).1
   else pure xs
 
-theorem qpartition_triple (xs : {xs : Array α // xs.size = n})
+theorem qpartition_triple (xs : Vector α n)
     (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi) {L M R}
     (hlo : L.length = lo.1) (hhi : lo.1 + M.length = hi + 1)
     (hxs : xs.1.toList = L ++ M ++ R)
@@ -98,7 +125,7 @@ theorem qpartition_triple (xs : {xs : Array α // xs.size = n})
      xs'.1.toList = L ++ l ++ a::r ++ R ∧ (∀ b ∈ l, ¬lt a b) ∧ (∀ b ∈ r, ¬lt b a)⦄ := by
   sorry
 
--- theorem sorted_triple_aux' (xs : {xs : Array α // xs.size = n})
+-- theorem sorted_triple_aux' (xs : Vector α n)
 --     (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : lo = hi)
 --     (hxs : xs.1.toList = L ++ M ++ R)
 --     :
@@ -108,10 +135,21 @@ theorem qpartition_triple (xs : {xs : Array α // xs.size = n})
 
 /-- `PermStabilizing lo hi as as'` asserts that `as` and `as'` are permutations of each other,
 and moreover they agree outside the range `lo..hi`. -/
-def PermStabilizing (lo hi : Nat) (xs xs' : Vector α n) :=
-  xs.toList ~ xs'.toList ∧ ∀ i : Fin n, ¬(lo ≤ i ∧ i < hi) → xs.get i = xs'.get i
+-- def PermStabilizing (lo hi : Nat) (xs xs' : Vector α n) :=
+--   (xs.toList ~ xs'.toList) ∧ ∀ i : Fin n, ¬(lo ≤ i ∧ i < hi) → xs.get i = xs'.get i
 
-theorem sorted_triple' (xs : {xs : Array α // xs.size = n})
+theorem qsort_sort_permStabilizing (lt : α → α → Bool) (xs : Vector α n) (lo : Nat) (hi : Fin n) 
+    (L M R) (hlo : L.length = lo) (hhi : M.length > 0 → lo + M.length = hi + 1)
+    (hxs : xs.1.toList = L ++ M ++ R):
+   ⦃⌜True⌝⦄
+   qsort' lt xs lo hi
+   ⦃⇓ xs' => ∃ M', M'.length = M.length ∧ xs'.1.toList = L ++ M' ++ R ∧ xs.toList.Perm xs'.toList⦄ := by
+   -- ⦃⇓ xs' => ∃ M', M'.length = M.length ∧ xs'.1.toList = L ++ M' ++ R ∧ M'.Pairwise (fun a b => ¬lt b a)⦄ := by
+  sorry
+
+-- theorem doubleEntails 
+
+theorem sorted_triple' (xs : Vector α n)
     (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : M.length > 0 → lo + M.length = hi + 1)
     (hxs : xs.1.toList = L ++ M ++ R)
     :
@@ -161,10 +199,10 @@ theorem sorted_triple' (xs : {xs : Array α // xs.size = n})
       simp at h
       rcases h with ⟨rt', hrt'eq, hrt'dec, hrt'sorted⟩
       refine ⟨l' ++ a::rt', sorry, by simpa, ?_⟩
-      simp only [pairwise_append]
-      simp only [pairwise_cons]
+      simp only [List.pairwise_append]
+      simp only [List.pairwise_cons]
       -- simp only [forall_mem_cons, l'.mem_iff_get, rt'.mem_iff_get]
-      simp only [forall_mem_cons]
+      simp only [List.forall_mem_cons]
       simp at hl'sorted
       exact ⟨hl'sorted, ⟨sorry, hrt'sorted⟩, sorry⟩
       -- simp only [pairwise_append, pairwise_cons, forall_mem_cons, rr.mem_iff, ll.mem_iff]
