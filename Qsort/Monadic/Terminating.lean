@@ -132,8 +132,8 @@ termination_by hi - lo
 --   unfold newHi at *
 --   simp_all
 --   omega
-#print qsort'._unary
-#print qsort'.eq_def
+-- #print qsort'._unary
+-- #print qsort'.eq_def
 
 /-- Sort the array `xs[low..=high]` using comparator `lt`. -/
 @[inline] def qsort (xs : Array α) (lt : α → α → Bool) :
@@ -201,13 +201,15 @@ theorem qpartition_triple (xs : Vector α n)
 
 #eval #[1, 2, 3, 4][1:3].toArray
 
-theorem sorted_triple' (xs : Vector α n)
+variable (lt : α → α → Bool) (lt_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
+
+theorem sorted_triple' {lt : α → α → Bool} (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) (xs : Vector α n)
     (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : M.length > 0 → lo + M.length = hi + 1)
     (hxs : xs.1.toList = L ++ M ++ R)
     :
    ⦃⌜True⌝⦄
    qsort' lt xs lo hi
-   ⦃⇓ xs' => ∃ M', M'.length = M.length ∧ xs'.1.toList = L ++ M' ++ R ∧ M'.Pairwise (fun a b => ¬lt b a)⦄ := by
+   ⦃⇓ xs' => ∃ M', M'.length = M.length ∧ xs'.1.toList = L ++ M' ++ R ∧ M'.Pairwise (fun a b => ¬lt b a) ∧ M'.Perm M⦄ := by
   if hM : M.length > 0 then
     unfold qsort'
     mintro -
@@ -230,47 +232,59 @@ theorem sorted_triple' (xs : Vector α n)
       have :
        ⦃⌜True⌝⦄
        qsort' lt xs' lo ⟨mid - 1, by omega⟩
-       ⦃⇓ ret => ∃ l', l'.length = l.length ∧ ret.1.toList = L ++ l' ++ (a::rt ++ R) ∧ l'.Pairwise (fun a b => ¬lt b a)⦄ :=
-       (sorted_triple' (lt := lt) xs' lo ⟨mid - 1, by omega⟩ L l (a::rt ++ R) (by assumption) (by
+       ⦃⇓ ret => ∃ l', l'.length = l.length ∧ ret.1.toList = L ++ l' ++ (a::rt ++ R) ∧ l'.Pairwise (fun a b => ¬lt b a) ∧ l'.Perm l⦄ :=
+       (sorted_triple' le_trans xs' lo ⟨mid - 1, by omega⟩ L l (a::rt ++ R) (by assumption) (by
          simp
          omega) (by simp_all))
       mspec this
       mpure h
-      rcases h with ⟨l', hl'eq, hl'dec, hl'sorted⟩
+      rcases h with ⟨l', hl'eq, hl'dec, hl'sorted, hpl'⟩
       simp at hl'dec
       have :
        ⦃⌜True⌝⦄
        qsort' lt r (mid + 1) hi
-       ⦃⇓ ret => ∃ rt', rt'.length = rt.length ∧ ret.1.toList = (L ++ l' ++ [a]) ++ rt' ++ R ∧ rt'.Pairwise (fun a b => ¬lt b a)⦄ :=
-       (sorted_triple' (lt := lt) r (mid + 1) hi (L ++ l' ++ [a]) rt R (by simp; subst hlo; rw [hl'eq]; omega) (by simp; omega) (by simpa))
+       ⦃⇓ ret => ∃ rt', rt'.length = rt.length ∧ ret.1.toList = (L ++ l' ++ [a]) ++ rt' ++ R ∧ rt'.Pairwise (fun a b => ¬lt b a) ∧ rt'.Perm rt⦄ :=
+       (sorted_triple' le_trans r (mid + 1) hi (L ++ l' ++ [a]) rt R (by simp; subst hlo; rw [hl'eq]; omega) (by simp; omega) (by simpa))
       mspec this
       mwp
       mpure h
       mpure_intro
       simp
       simp at h
-      rcases h with ⟨rt', hrt'eq, hrt'dec, hrt'sorted⟩
+      rcases h with ⟨rt', hrt'eq, hrt'dec, hrt'sorted, hprt'⟩
       refine ⟨l' ++ a::rt', sorry, by simpa, ?_⟩
       simp only [List.pairwise_append]
       simp only [List.pairwise_cons]
       -- simp only [forall_mem_cons, l'.mem_iff_get, rt'.mem_iff_get]
       simp only [List.forall_mem_cons]
       simp at hl'sorted
-      exact ⟨hl'sorted, ⟨sorry, hrt'sorted⟩, sorry⟩
+      simp at hl
+      simp at hrt
+      simp at le_trans
+      refine ⟨⟨hl'sorted, ⟨fun x => ?_, hrt'sorted⟩, fun x h => ⟨?_, fun y h' => ?_⟩⟩, ?_⟩
+      rw [hprt'.mem_iff]
+      apply hrt
+      rw [hpl'.mem_iff] at h
+      apply (hl _ h)
+      rw [hpl'.mem_iff] at h
+      rw [hprt'.mem_iff] at h'
+      exact le_trans (hrt y h') (hl x h)
+      sorry
       -- simp only [pairwise_append, pairwise_cons, forall_mem_cons, rr.mem_iff, ll.mem_iff]
     have : lo = hi := sorry
     have : M.length = 1 := by omega
     mpure_intro -- TODO should automatically remove `spred`
     simp only [Bool.not_eq_true, SPred.and_nil, SPred.exists_nil]
-    refine ⟨M, sorry, hxs, ?_⟩
+    refine ⟨M, rfl, hxs, ?_⟩
     have : ∃ x, M = [x] := by sorry
     rw [this.choose_spec]
     simp
   else
+    simp at hM
     sorry
 termination_by hi - lo
 
-theorem sorted_triple (xs : Array α) :
+theorem sorted_triple {lt : α → α → Bool} (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) (xs : Array α) :
    ⦃⌜True⌝⦄
    qsort xs lt
    ⦃⇓ xs' => xs'.toList.Pairwise (fun a b => ¬lt b a)⦄
@@ -284,12 +298,12 @@ theorem sorted_triple (xs : Array α) :
     have :
      ⦃⌜True⌝⦄
      qsort' lt ⟨xs, rfl⟩ 0 ⟨xs.size - 1, by omega⟩
-     ⦃⇓ xs' => ∃ M', M'.length = xs.toList.length ∧ xs'.1.toList = [] ++ M' ++ [] ∧ M'.Pairwise (fun a b => ¬lt b a)⦄ :=
-     (sorted_triple' ⟨xs, rfl⟩ 0 ⟨xs.size - 1, by omega⟩ [] xs.toList [] rfl (by simp; omega) (by simp))
+     ⦃⇓ xs' => ∃ M', M'.length = xs.toList.length ∧ xs'.1.toList = [] ++ M' ++ [] ∧ M'.Pairwise (fun a b => ¬lt b a) ∧ M'.Perm xs.toList⦄ :=
+     (sorted_triple' le_trans ⟨xs, rfl⟩ 0 ⟨xs.size - 1, by omega⟩ [] xs.toList [] rfl (by simp; omega) (by simp))
     mspec this
     mpure h
     simp_all
-    rcases h with ⟨_, _, h, r⟩
+    rcases h with ⟨_, _, h, r, _⟩
     simpa [h]
   . next h =>
     simp at h
@@ -298,6 +312,6 @@ theorem sorted_triple (xs : Array α) :
     mwp
     simp
 
-theorem sorted (xs : Array α) :
+theorem sorted (xs : Array α) {lt : α → α → Bool} (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) :
     (qsort xs lt).run.toList.Pairwise (fun a b => ¬lt b a) := by
-  exact sorted_triple (lt := lt) (α := α) xs True.intro
+  exact sorted_triple le_trans (α := α) xs True.intro
