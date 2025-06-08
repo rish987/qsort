@@ -31,7 +31,7 @@ namespace Monadic
 
 abbrev Vector (α n) := {xs : Array α // xs.size = n}
 
-def Vector.get (xs : Vector α n) (i : Fin n) := xs.1.get i (i.cast xs.2.symm).2
+def Vector.get (xs : Vector α n) (i : Fin n) := xs.1[Fin.mk (i : Nat) (i.cast xs.2.symm).2]
 
 def Vector.toList (xs : Vector α n) : List α := xs.1.toList
 
@@ -168,8 +168,32 @@ theorem qpartition_triple (xs : Vector α n)
     ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt (xs'.get hi) (xs'.get n))) ∧
     ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt (xs'.get n) (xs'.get hi))) ∧
     ∃ M', M'.length = M.length ∧ xs'.val.toList = L ++ M' ++ R ∧ M'.Perm M
-  case pre => sorry
-  case step => sorry
+  case pre =>
+    simp
+    refine ⟨by omega, by omega, by simp at h; exact h⟩
+  case step =>
+    intro iv _ _ _ _
+    rcases iv with ⟨⟨⟨i, j⟩, _⟩, xs'⟩
+    mintro h
+    mpure h
+    simp at h
+    rcases h with ⟨hj, hl, hr, hM⟩
+    mwp
+    split
+    next heq =>
+    rcases heq
+    mwp
+    split
+    split
+    all_goals mpure_intro
+    . refine ⟨?_, ?_, ?_, ?_⟩
+      simp
+      omega
+      sorry
+      sorry
+      sorry
+    sorry
+    sorry
   rcases r with ⟨⟨⟨i, j⟩, _⟩, xs'⟩
   mpure h
   simp at h
@@ -185,19 +209,34 @@ theorem qpartition_triple (xs : Vector α n)
   have hin : i < n := by get_elem_tactic
   let r : Vector α n := ⟨xs'.1.swap i hi, (Array.size_swap ..).trans xs'.2⟩
   let a := r.1[i]
-  have : a = xs'.get hi := sorry
+  -- have : r.1.size = xs'.1.size := Array.size_swap xs'.1 i hi (hi := by get_elem_tactic) (hj := by get_elem_tactic)
+  have : r.1.size = n := by omega
+  have : a = xs'.get hi := Array.getElem_swap_left xs'.1 (i := i) (j := hi) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
+  have : r.get hi = xs'.1[i] := Array.getElem_swap_right xs'.1 (i := i) (j := hi) (hi := by get_elem_tactic) (hj := by get_elem_tactic) 
   have hrt' : ∀ (x : Fin n), i < x → x ≤ hi → lt (r.get x) a = false := sorry
   have hl' : ∀ (x : Fin n), lo ≤ x → x < i → lt a (r.get x) = false := sorry
   mwp
-  let M' := r.1[lo:hi + 1].toArray.toList
+  -- let M' := r.1[lo:hi + 1].toArray.toList
   let l := r.1[lo:i].toArray.toList
   let rt := r.1[i + 1:hi + 1].toArray.toList
+  have hr : r.1.toList = L ++ l ++ a :: rt ++ R := sorry
+  simp at hr
   mpure_intro
   simp
+  have hl : ∀ (b : α), b ∈ l ↔ ∃ (x : Fin n), lo ≤ x ∧ x < i ∧ r.get x = b := sorry
+  have hrt : ∀ (b : α), b ∈ rt ↔ ∃ (x : Fin n), i < x ∧ x ≤ hi ∧ r.get x = b := sorry
   have : l.length = i - lo := by sorry
   have : rt.length = (hi + 1) - (i + 1) := by sorry
   have : M.length = hi + 1 - lo := by omega
-  refine ⟨l, rt, by omega, by omega, a, sorry, sorry, sorry, sorry⟩
+  refine ⟨l, rt, by omega, by omega, a, hr, ?_, ?_, sorry⟩
+  intro b
+  rw [hl]
+  rintro ⟨x, ⟨h1, h2, rfl⟩⟩
+  apply hl' x h1 h2
+  intro b
+  rw [hrt]
+  rintro ⟨x, ⟨h1, h2, rfl⟩⟩
+  apply hrt' x h1 h2
 
 #eval #[1, 2, 3, 4][1:3].toArray
 
@@ -281,6 +320,7 @@ theorem sorted_triple' {lt : α → α → Bool} (le_trans : ∀ {{a b c}}, ¬lt
     simp
   else
     simp at hM
+    subst hM
     sorry
 termination_by hi - lo
 
