@@ -142,7 +142,9 @@ termination_by hi - lo
     pure (← qsort' lt ⟨xs, rfl⟩ 0 ⟨xs.size - 1, by omega⟩).1
   else pure xs
 
-theorem qpartition_triple (xs : Vector α n)
+variable {lt : α → α → Bool} (lt_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
+
+theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) (xs : Vector α n)
     (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi) {L M R}
     (hlo : L.length = lo.1) (hhi : lo.1 + M.length = hi + 1)
     (hxs : xs.1.toList = L ++ M ++ R)
@@ -165,14 +167,14 @@ theorem qpartition_triple (xs : Vector α n)
   mspec Specs.forIn_list ?inv ?step
   case inv => exact PostCond.total fun (⟨⟨(i, j), _⟩, xs'⟩, sp) =>
     j = lo + sp.rpref.length ∧
-    ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt (xs'.get hi) (xs'.get n))) ∧
-    ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt (xs'.get n) (xs'.get hi))) ∧
+    ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt (r.get hi) (xs'.get n))) ∧
+    ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt (xs'.get n) (r.get hi))) ∧
     ∃ M', M'.length = M.length ∧ xs'.val.toList = L ++ M' ++ R ∧ M'.Perm M
   case pre =>
     simp
     refine ⟨by omega, by omega, by simp at h; exact h⟩
   case step =>
-    intro iv _ _ _ _
+    intro iv rpref a rsuff _
     rcases iv with ⟨⟨⟨i, j⟩, _⟩, xs'⟩
     mintro h
     mpure h
@@ -185,15 +187,79 @@ theorem qpartition_triple (xs : Vector α n)
     mwp
     split
     split
+    let r' : Vector α _ := ⟨xs'.1.swap i j, (Array.size_swap ..).trans xs'.2⟩
+    have hrdef : r' = ⟨xs'.1.swap i j, (Array.size_swap ..).trans xs'.2⟩ := rfl
+    -- have : r.1.size = xs'.1.size := Array.size_swap xs'.1 i hi (hi := by get_elem_tactic) (hj := by get_elem_tactic)
+    have hixs : r'.1[i] = xs'.1[j] := Array.getElem_swap_left xs'.1 (i := i) (j := j) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
+    have hjxs : r'.1[j] = xs'.1[i] := Array.getElem_swap_right xs'.1 (i := i) (j := j) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
+    -- have hhixs : r'.1[hi] = xs'.1[hi] := Array.getElem_swap_of_ne xs'.1 (i := i) (j := j) (k := hi) (hi := by get_elem_tactic) (hj := by get_elem_tactic) (by omega) (by omega) (by omega)
     all_goals mpure_intro
-    . refine ⟨?_, ?_, ?_, ?_⟩
-      simp
-      omega
-      sorry
-      sorry
+    . next hhihj =>
+      refine ⟨?_, ?_, ?_, ?_⟩
+      . simp
+        omega
+      intro x
+      simp at hhihj
+      if h : x = i then
+        subst h
+        refine fun _ => le_asymm ?_
+        rw [← hrdef]
+        unfold Vector.get
+        simp
+        rw [hixs]
+        exact hhihj
+      else
+        refine fun _ => ?_
+        have : x < i := by omega
+        have : (x : Nat) ≠ i := by omega
+        have : (x : Nat) ≠ j := by omega
+        have hhixs : r'.1[x] = xs'.1[x] := Array.getElem_swap_of_ne xs'.1 (i := i) (j := j) (k := x) (hi := by get_elem_tactic) (hj := by get_elem_tactic) (by omega) (by omega) (by omega)
+        rw [← hrdef, Vector.get, Fin.getElem_fin]
+        unfold Vector.get
+        simp only [Fin.getElem_fin] at hhixs
+        simp only [Fin.getElem_fin]
+        rw [hhixs]
+        simp
+        apply hl _
+        all_goals omega
+      intro x
+      simp at hhihj
+      if h : x = j then
+        subst h
+        rintro ⟨_, _⟩
+        rw [← hrdef]
+        unfold Vector.get
+        simp
+        simp only [Vector.get, Fin.getElem_fin] at hr
+        rw [hjxs]
+        apply hr ⟨i, by omega⟩
+        simp only [Nat.le_refl]
+        simp only
+        omega
+      else
+        -- refine fun _ => ?_
+        -- have : x < i := by omega
+        -- have : (x : Nat) ≠ i := by omega
+        -- have : (x : Nat) ≠ j := by omega
+        -- have hhixs : r'.1[x] = xs'.1[x] := Array.getElem_swap_of_ne xs'.1 (i := i) (j := j) (k := x) (hi := by get_elem_tactic) (hj := by get_elem_tactic) (by omega) (by omega) (by omega)
+        -- rw [← hrdef, Vector.get, Fin.getElem_fin]
+        -- unfold Vector.get
+        -- simp only [Fin.getElem_fin] at hhixs
+        -- simp only [Fin.getElem_fin]
+        -- rw [hhixs]
+        -- simp
+        -- apply hl _
+        -- all_goals omega
+        sorry
       sorry
     sorry
-    sorry
+    -- have : j < hi := by omega
+    have : (rpref.reverse ++ a :: rsuff).length = hi - lo := by sorry
+    simp at this
+    have : rpref.length + lo < hi := by omega
+    subst hj
+    rw [Nat.add_comm] at this
+    contradiction
   rcases r with ⟨⟨⟨i, j⟩, _⟩, xs'⟩
   mpure h
   simp at h
@@ -238,11 +304,9 @@ theorem qpartition_triple (xs : Vector α n)
   rintro ⟨x, ⟨h1, h2, rfl⟩⟩
   apply hrt' x h1 h2
 
-#eval #[1, 2, 3, 4][1:3].toArray
+-- #eval #[1, 2, 3, 4][1:3].toArray
 
-variable (lt : α → α → Bool) (lt_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
-
-theorem sorted_triple' {lt : α → α → Bool} (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) (xs : Vector α n)
+theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) (xs : Vector α n)
     (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : M.length > 0 → lo + M.length = hi + 1)
     (hxs : xs.1.toList = L ++ M ++ R)
     :
@@ -255,7 +319,7 @@ theorem sorted_triple' {lt : α → α → Bool} (le_trans : ∀ {{a b c}}, ¬lt
     mwp
     split
     -- TODO fix bug of state not changing/no errmsg when changing angle brackets to parens
-    . mspec (qpartition_triple _ _ _ _ hlo (hhi hM) hxs)
+    . mspec (qpartition_triple le_asymm le_trans _ _ _ _ hlo (hhi hM) hxs)
       mpure h
       rcases r with ⟨xs', pivot⟩
       rcases h with ⟨l, rt, a, hMlrt, hM', hxs', hl, hrt, hlrP⟩
@@ -272,7 +336,7 @@ theorem sorted_triple' {lt : α → α → Bool} (le_trans : ∀ {{a b c}}, ¬lt
        ⦃⌜True⌝⦄
        qsort' lt xs' lo ⟨mid - 1, by omega⟩
        ⦃⇓ ret => ∃ l', l'.length = l.length ∧ ret.1.toList = L ++ l' ++ (a::rt ++ R) ∧ l'.Pairwise (fun a b => ¬lt b a) ∧ l'.Perm l⦄ :=
-       (sorted_triple' le_trans xs' lo ⟨mid - 1, by omega⟩ L l (a::rt ++ R) (by assumption) (by
+       (sorted_triple' le_asymm le_trans xs' lo ⟨mid - 1, by omega⟩ L l (a::rt ++ R) (by assumption) (by
          simp
          omega) (by simp_all))
       mspec this
@@ -283,7 +347,7 @@ theorem sorted_triple' {lt : α → α → Bool} (le_trans : ∀ {{a b c}}, ¬lt
        ⦃⌜True⌝⦄
        qsort' lt r (mid + 1) hi
        ⦃⇓ ret => ∃ rt', rt'.length = rt.length ∧ ret.1.toList = (L ++ l' ++ [a]) ++ rt' ++ R ∧ rt'.Pairwise (fun a b => ¬lt b a) ∧ rt'.Perm rt⦄ :=
-       (sorted_triple' le_trans r (mid + 1) hi (L ++ l' ++ [a]) rt R (by simp; subst hlo; rw [hl'eq]; omega) (by simp; omega) (by simpa))
+       (sorted_triple' le_asymm le_trans r (mid + 1) hi (L ++ l' ++ [a]) rt R (by simp; subst hlo; rw [hl'eq]; omega) (by simp; omega) (by simpa))
       mspec this
       mwp
       mpure h
@@ -324,7 +388,7 @@ theorem sorted_triple' {lt : α → α → Bool} (le_trans : ∀ {{a b c}}, ¬lt
     sorry
 termination_by hi - lo
 
-theorem sorted_triple {lt : α → α → Bool} (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) (xs : Array α) :
+theorem sorted_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) (xs : Array α) :
    ⦃⌜True⌝⦄
    qsort xs lt
    ⦃⇓ xs' => xs'.toList.Pairwise (fun a b => ¬lt b a)⦄
@@ -339,7 +403,7 @@ theorem sorted_triple {lt : α → α → Bool} (le_trans : ∀ {{a b c}}, ¬lt 
      ⦃⌜True⌝⦄
      qsort' lt ⟨xs, rfl⟩ 0 ⟨xs.size - 1, by omega⟩
      ⦃⇓ xs' => ∃ M', M'.length = xs.toList.length ∧ xs'.1.toList = [] ++ M' ++ [] ∧ M'.Pairwise (fun a b => ¬lt b a) ∧ M'.Perm xs.toList⦄ :=
-     (sorted_triple' le_trans ⟨xs, rfl⟩ 0 ⟨xs.size - 1, by omega⟩ [] xs.toList [] rfl (by simp; omega) (by simp))
+     (sorted_triple' le_asymm le_trans ⟨xs, rfl⟩ 0 ⟨xs.size - 1, by omega⟩ [] xs.toList [] rfl (by simp; omega) (by simp))
     mspec this
     mpure h
     simp_all
@@ -352,6 +416,6 @@ theorem sorted_triple {lt : α → α → Bool} (le_trans : ∀ {{a b c}}, ¬lt 
     mwp
     simp
 
-theorem sorted (xs : Array α) {lt : α → α → Bool} (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) :
+theorem sorted (xs : Array α) {lt : α → α → Bool} (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) :
     (qsort xs lt).run.toList.Pairwise (fun a b => ¬lt b a) := by
-  exact sorted_triple le_trans (α := α) xs True.intro
+  exact sorted_triple le_asymm le_trans (α := α) xs True.intro
