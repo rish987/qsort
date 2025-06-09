@@ -69,8 +69,9 @@ theorem List.findIndex!_fmap_implies_pred_triple
   simp_all only [Bool.not_eq_true]
   unfold findIndex!_fmap
   mintro - ∀s
-  split <;> mwp
+  split 
   simp
+  sorry
   next y ys =>
   split
   . simpa
@@ -165,13 +166,13 @@ theorem List.findIndexT!_implies_pred_triple
     List.findIndexT! xs p
     ⦃post⟨fun i _ => ∃x, xs[i]? = some x ∧ p x,
           fun _ _ => ∀ (i : Nat) x, xs[i]? = some x → ¬ (p x)⟩⦄ := by
-  induction xs <;> mintro - ∀_; unfold findIndexT! ; mwp
+  induction xs <;> mintro - ∀_; unfold findIndexT! ;
   simp
+  sorry
   next tail ih _ =>
   unfold findIndexT!
   split
   . simpa
-  mwp
   next hn =>
   simp at hn
   mspec ih

@@ -158,19 +158,18 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
      (l ++ a::r).Perm M⦄ := by
   unfold qpartition
   mintro -
-  mwp
   let this :
     ⦃⌜True⌝⦄
       qpartition_prep xs lt lo hi
     ⦃⇓xs' => ∃ M', M'.length = M.length ∧ xs'.val.toList = L ++ M' ++ R ∧ M'.Perm M⦄ := (qpartition_prep_triple (lt := lt) xs lo hi hle hlo hhi hxs)
   mspec this
-  mspec Specs.forIn_list ?inv ?step
+  mspec 
   case inv => exact PostCond.total fun (⟨⟨(i, j), _⟩, xs'⟩, sp) =>
     j = lo + sp.rpref.length ∧
     ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt (r.get hi) (xs'.get n))) ∧
     ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt (xs'.get n) (r.get hi))) ∧
     ∃ M', M'.length = M.length ∧ xs'.val.toList = L ++ M' ++ R ∧ M'.Perm M
-  case pre =>
+  case pre1 =>
     simp
     refine ⟨by omega, by omega, by simp at h; exact h⟩
   case step =>
@@ -180,53 +179,51 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     mpure h
     simp at h
     rcases h with ⟨hj, hl, hr, hM⟩
-    mwp
     split
     next heq =>
     rcases heq
-    mwp
     split
     split
     let r' : Vector α _ := ⟨xs'.1.swap i j, (Array.size_swap ..).trans xs'.2⟩
     have hrdef : r' = ⟨xs'.1.swap i j, (Array.size_swap ..).trans xs'.2⟩ := rfl
     -- have : r.1.size = xs'.1.size := Array.size_swap xs'.1 i hi (hi := by get_elem_tactic) (hj := by get_elem_tactic)
-    have hixs : r'.1[i] = xs'.1[j] := Array.getElem_swap_left xs'.1 (i := i) (j := j) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
-    have hjxs : r'.1[j] = xs'.1[i] := Array.getElem_swap_right xs'.1 (i := i) (j := j) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
+    have hixs : r'.1[i] = xs'.1[j] := Array.getElem_swap_left (xs := xs'.1) (i := i) (j := j) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
+    have hjxs : r'.1[j] = xs'.1[i] := Array.getElem_swap_right (xs := xs'.1) (i := i) (j := j) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
     -- have hhixs : r'.1[hi] = xs'.1[hi] := Array.getElem_swap_of_ne xs'.1 (i := i) (j := j) (k := hi) (hi := by get_elem_tactic) (hj := by get_elem_tactic) (by omega) (by omega) (by omega)
     all_goals mpure_intro
     . next hhihj =>
+      simp
       refine ⟨?_, ?_, ?_, ?_⟩
-      . simp
-        omega
+      . omega
       intro x
       simp at hhihj
       if h : x = i then
         subst h
-        refine fun _ => le_asymm ?_
+        simp at le_asymm
+        refine fun _ _ => le_asymm ?_
         rw [← hrdef]
         unfold Vector.get
         simp
         rw [hixs]
         exact hhihj
       else
-        refine fun _ => ?_
+        refine fun _ _ => ?_
         have : x < i := by omega
         have : (x : Nat) ≠ i := by omega
         have : (x : Nat) ≠ j := by omega
-        have hhixs : r'.1[x] = xs'.1[x] := Array.getElem_swap_of_ne xs'.1 (i := i) (j := j) (k := x) (hi := by get_elem_tactic) (hj := by get_elem_tactic) (by omega) (by omega) (by omega)
+        have hhixs : r'.1[x] = xs'.1[x] := Array.getElem_swap_of_ne (xs := xs'.1) (i := i) (j := j) (k := x) (hi := by get_elem_tactic) (hj := by get_elem_tactic) (by omega) (by omega) (by omega)
         rw [← hrdef, Vector.get, Fin.getElem_fin]
         unfold Vector.get
         simp only [Fin.getElem_fin] at hhixs
         simp only [Fin.getElem_fin]
         rw [hhixs]
-        simp
         apply hl _
         all_goals omega
       intro x
       simp at hhihj
       if h : x = j then
         subst h
-        rintro ⟨_, _⟩
+        rintro _ _
         rw [← hrdef]
         unfold Vector.get
         simp
@@ -266,7 +263,6 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   rcases h with ⟨hj, hl, hrt, hM⟩
   have hj : j = hi := by omega
   rcases hj
-  mwp
   split
   next heq =>
   rcases heq
@@ -277,11 +273,10 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   let a := r.1[i]
   -- have : r.1.size = xs'.1.size := Array.size_swap xs'.1 i hi (hi := by get_elem_tactic) (hj := by get_elem_tactic)
   have : r.1.size = n := by omega
-  have : a = xs'.get hi := Array.getElem_swap_left xs'.1 (i := i) (j := hi) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
-  have : r.get hi = xs'.1[i] := Array.getElem_swap_right xs'.1 (i := i) (j := hi) (hi := by get_elem_tactic) (hj := by get_elem_tactic) 
+  have : a = xs'.get hi := Array.getElem_swap_left
+  have : r.get hi = xs'.1[i] := Array.getElem_swap_right
   have hrt' : ∀ (x : Fin n), i < x → x ≤ hi → lt (r.get x) a = false := sorry
   have hl' : ∀ (x : Fin n), lo ≤ x → x < i → lt a (r.get x) = false := sorry
-  mwp
   -- let M' := r.1[lo:hi + 1].toArray.toList
   let l := r.1[lo:i].toArray.toList
   let rt := r.1[i + 1:hi + 1].toArray.toList
@@ -316,7 +311,6 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
   if hM : M.length > 0 then
     unfold qsort'
     mintro -
-    mwp
     split
     -- TODO fix bug of state not changing/no errmsg when changing angle brackets to parens
     . mspec (qpartition_triple le_asymm le_trans _ _ _ _ hlo (hhi hM) hxs)
@@ -331,7 +325,6 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
       simp at hM'
       simp at hxs'
       -- cases
-      -- mwp
       have :
        ⦃⌜True⌝⦄
        qsort' lt xs' lo ⟨mid - 1, by omega⟩
@@ -349,7 +342,6 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
        ⦃⇓ ret => ∃ rt', rt'.length = rt.length ∧ ret.1.toList = (L ++ l' ++ [a]) ++ rt' ++ R ∧ rt'.Pairwise (fun a b => ¬lt b a) ∧ rt'.Perm rt⦄ :=
        (sorted_triple' le_asymm le_trans r (mid + 1) hi (L ++ l' ++ [a]) rt R (by simp; subst hlo; rw [hl'eq]; omega) (by simp; omega) (by simpa))
       mspec this
-      mwp
       mpure h
       mpure_intro
       simp
@@ -378,7 +370,7 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
     have : M.length = 1 := by omega
     mpure_intro -- TODO should automatically remove `spred`
     simp only [Bool.not_eq_true, SPred.and_nil, SPred.exists_nil]
-    refine ⟨M, rfl, hxs, ?_⟩
+    refine ⟨M, rfl, by simp only [Idd.run_pure]; exact hxs, ?_⟩
     have : ∃ x, M = [x] := by sorry
     rw [this.choose_spec]
     simp
@@ -397,7 +389,6 @@ theorem sorted_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : 
   split
   . next h =>
     mintro -
-    mwp
     -- FIXME why can't I inline the proof as an argument to mspec, with holes for the args corresponding to those of the call to qsort'? Is the pattern matching that it does not powerful enough?
     have :
      ⦃⌜True⌝⦄
@@ -413,7 +404,6 @@ theorem sorted_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : 
     simp at h
     subst h
     mintro -
-    mwp
     simp
 
 theorem sorted (xs : Array α) {lt : α → α → Bool} (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) :
