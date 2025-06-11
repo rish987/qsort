@@ -57,6 +57,20 @@ theorem xs_triple
 
 def mxs (f : Vector α n → Vector α n) : StateM (ST α n) Unit := do modify fun s => {s with xs := f s.xs}
 
+@[spec]
+theorem mxs_triple
+    :
+   ⦃⌜#gxs = r⌝⦄
+   mxs (α := α) (n := n) f
+   ⦃⇓ _ => ⌜#gxs = f r⌝⦄ := by
+  unfold mxs
+  mintro h ∀s
+  mpure h
+  simp at h
+  mvcgen
+  simp
+  congr
+
 def qpartition_maybeSwap (lt : α → α → Bool) (lo hi : Fin n) : StateM (ST α n) Unit := do
   if lt ((← xs).get hi) ((← xs).get lo) then
     mxs fun xs => ⟨xs.1.swap lo hi, (Array.size_swap ..).trans xs.2⟩
@@ -88,7 +102,8 @@ def qpartition_prep
     -- Therefore, showing it is deferred to the correctness proof for now.
     if hjhi : j < hi then
       have _ : i < hi := Nat.lt_of_le_of_lt hij hjhi
-      if lt ((← xs).get ⟨j, by omega⟩) pivot then
+      let xs := (← xs) -- FIXME
+      if lt (xs.get ⟨j, by omega⟩) (xs.get ⟨hi, by omega⟩) then
         mxs fun xs => ⟨(xs).1.swap i j, (Array.size_swap ..).trans xs.2⟩
         i := i + 1
         j := j + 1
@@ -187,86 +202,47 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     -- mpure h
     -- simp at h
     -- rcases h with ⟨hj, hl, hr, hM⟩
+    simp
+    mintro ∀s
+    mpure h
+    simp at h
+    rcases h with ⟨hj, hl, hr, hM⟩
     split
     next heq =>
     rcases heq
     split
-    mspec (xs_triple (P := ⌜j = ↑lo + rpref.length ∧
-      (∀ (n_1 : Fin n), lo ≤ n_1 ∧ ↑n_1 < i → ¬lt ((#gxs).get hi) ((#gxs).get n_1) = true) ∧
-        (∀ (n_1 : Fin n), i ≤ ↑n_1 ∧ ↑n_1 < j → ¬lt (((#gxs)).get n_1) ((#gxs).get hi) = true) ∧
-          ∃ M', M'.length = M.length ∧ (#(gxs)).val.toList = L ++ M' ++ R ∧ M'.Perm M⌝))
+    mspec (xs_triple (P := fun s' => s = s'))
+    mintro ∀s'
+    mpure h
+    have : s = s' ∧ r = s'.xs := h
+    rcases h with ⟨rfl, rfl⟩
     split
-    let r' : SVal (PostShape.arg (ST α n) PostShape.pure).args (Vector α _) := ⌜⟨(#gxs).1.swap i j
-      (by
-        have := (#gxs).2
-        omega)
-      (by
-        have := (#gxs).2
-        omega)
-      , (Array.size_swap ..).trans (#gxs).2⟩⌝
-    mhave hrdef : ⌜(#r') = ⟨(#gxs).1.swap i j
-      (by
-        have := (#gxs).2
-        omega)
-      (by
-        have := (#gxs).2
-        omega)
-      , (Array.size_swap ..).trans (#gxs).2⟩⌝ := by
-        mintro ∀s
-        mpure h
-        mpure_intro
-        rfl
-    mhave hixs : ⌜(#r').1[i]'(by have := (#r').2; omega) = (#gxs).1[j]'(by have := (#gxs).2; omega)⌝ := by
-      mintro ∀s
-      mpure h
-      mpure_intro
-      exact Array.getElem_swap_left
-    mhave hjxs : ⌜(#r').1[j]'(by have := (#r').2; omega) = (#gxs).1[i]'(by have := (#gxs).2; omega)⌝ := by
-      mintro ∀s
-      mpure h
-      mpure_intro
-      exact Array.getElem_swap_right
-    -- have hhixs : r'.1[hi] = xs'.1[hi] := Array.getElem_swap_of_ne xs'.1 (i := i) (j := j) (k := hi) (hi := by get_elem_tactic) (hj := by get_elem_tactic) (by omega) (by omega) (by omega)
-    all_goals mpure_intro
     . next hhihj =>
-      simp
-      have hr' : r'.val[(hi : Nat)] = xs'.val[(hi : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
-      refine ⟨?_, ?_, ?_, ?_⟩
-      . omega
-      intro x
-      simp at hhihj
-      if h : x = i then
-        subst h
+      mspec
+      mpure_intro
+      refine ⟨by omega, fun x => ?_, fun x => ?_, ?_⟩
+      if h' : x = i then
+        subst h'
         simp at le_asymm
-        refine fun _ _ => le_asymm ?_
-        rw [← hrdef]
-        unfold Vector.get
         simp
-        rw [hixs, hr']
+        refine fun _ => le_asymm ?_
+        simp only [Vector.get, Fin.getElem_fin]
+        rw [Array.getElem_swap_left, Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
         exact hhihj
       else
+        simp
         refine fun _ _ => ?_
-        have : x < i := by omega
-        have : (x : Nat) ≠ i := by omega
-        have : (x : Nat) ≠ j := by omega
-        have hhixs : r'.1[x] = xs'.1[x] := Array.getElem_swap_of_ne (xs := xs'.1) (i := i) (j := j) (k := x) (hi := by get_elem_tactic) (hj := by get_elem_tactic) (by omega) (by omega) (by omega)
-        rw [← hrdef, Vector.get, Fin.getElem_fin]
-        unfold Vector.get
-        simp only [Fin.getElem_fin] at hhixs
-        simp only [Fin.getElem_fin]
-        rw [hhixs, hr']
+        rw [Vector.get, Fin.getElem_fin]
+        simp only [Vector.get, Fin.getElem_fin]
+        rw [Array.getElem_swap_of_ne, Array.getElem_swap_of_ne]
         apply hl _
         all_goals omega
-      intro x
-      simp at hhihj
-      if h : x = j then
-        subst h
+      if h' : x = j then
+        simp -- FIXME
+        subst h'
         rintro _ _
-        rw [← hrdef]
-        unfold Vector.get
-        simp
-        simp only [Vector.get, Fin.getElem_fin] at hr
-        rw [hjxs, hr']
+        simp [Vector.get, Fin.getElem_fin]
+        rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
         apply hr ⟨i, by omega⟩
         simp only [Nat.le_refl]
         simp only
@@ -295,7 +271,7 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     subst hj
     rw [Nat.add_comm] at this
     contradiction
-  rcases r with ⟨⟨⟨i, j⟩, _⟩, xs'⟩
+  rcases r with ⟨⟨i, j⟩, _⟩
   mpure h
   simp at h
   rcases h with ⟨hj, hl, hrt, hM⟩
