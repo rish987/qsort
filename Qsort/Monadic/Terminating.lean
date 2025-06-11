@@ -184,52 +184,31 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     rcases heq
     split
     split
-    let r' : Vector α _ := ⟨xs'.1.swap i j, (Array.size_swap ..).trans xs'.2⟩
-    have hrdef : r' = ⟨xs'.1.swap i j, (Array.size_swap ..).trans xs'.2⟩ := rfl
-    -- have : r.1.size = xs'.1.size := Array.size_swap xs'.1 i hi (hi := by get_elem_tactic) (hj := by get_elem_tactic)
-    have hixs : r'.1[i] = xs'.1[j] := Array.getElem_swap_left (xs := xs'.1) (i := i) (j := j) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
-    have hjxs : r'.1[j] = xs'.1[i] := Array.getElem_swap_right (xs := xs'.1) (i := i) (j := j) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
-    -- have hhixs : r'.1[hi] = xs'.1[hi] := Array.getElem_swap_of_ne xs'.1 (i := i) (j := j) (k := hi) (hi := by get_elem_tactic) (hj := by get_elem_tactic) (by omega) (by omega) (by omega)
     all_goals mpure_intro
     . next hhihj =>
       simp
-      have hr' : r'.val[(hi : Nat)] = xs'.val[(hi : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
-      refine ⟨?_, ?_, ?_, ?_⟩
-      . omega
-      intro x
+      refine ⟨by omega, fun x => ?_, fun x => ?_, ?_⟩
       simp at hhihj
       if h : x = i then
         subst h
         simp at le_asymm
         refine fun _ _ => le_asymm ?_
-        rw [← hrdef]
-        unfold Vector.get
-        simp
-        rw [hixs, hr']
+        simp only [Vector.get, Fin.getElem_fin]
+        rw [Array.getElem_swap_left, Array.getElem_swap_of_ne (by omega) (by omega) (by omega)]
         exact hhihj
       else
         refine fun _ _ => ?_
-        have : x < i := by omega
-        have : (x : Nat) ≠ i := by omega
-        have : (x : Nat) ≠ j := by omega
-        have hhixs : r'.1[x] = xs'.1[x] := Array.getElem_swap_of_ne (xs := xs'.1) (i := i) (j := j) (k := x) (hi := by get_elem_tactic) (hj := by get_elem_tactic) (by omega) (by omega) (by omega)
-        rw [← hrdef, Vector.get, Fin.getElem_fin]
-        unfold Vector.get
-        simp only [Fin.getElem_fin] at hhixs
-        simp only [Fin.getElem_fin]
-        rw [hhixs, hr']
+        rw [Vector.get, Fin.getElem_fin]
+        simp only [Vector.get, Fin.getElem_fin]
+        rw [Array.getElem_swap_of_ne, Array.getElem_swap_of_ne]
         apply hl _
         all_goals omega
-      intro x
       simp at hhihj
       if h : x = j then
         subst h
         rintro _ _
-        rw [← hrdef]
-        unfold Vector.get
-        simp
-        simp only [Vector.get, Fin.getElem_fin] at hr
-        rw [hjxs, hr']
+        simp only [Vector.get, Fin.getElem_fin]
+        rw [Array.getElem_swap_right, Array.getElem_swap_of_ne (by omega) (by omega) (by omega)]
         apply hr ⟨i, by omega⟩
         simp only [Nat.le_refl]
         simp only

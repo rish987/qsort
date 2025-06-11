@@ -169,8 +169,8 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   mspec 
   case inv => exact PostCond.total fun (⟨⟨i, j⟩, _⟩, sp) =>
     ⌜ j = lo + sp.rpref.length ∧
-    ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt (r.get hi) ((#gxs).get n))) ∧
-    ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt ((#gxs).get n) (r.get hi))) ∧
+    ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt ((#gxs).get hi) ((#gxs).get n))) ∧
+    ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt ((#gxs).get n) ((#gxs).get hi))) ∧
     ∃ M', M'.length = M.length ∧ (#gxs).val.toList = L ++ M' ++ R ∧ M'.Perm M⌝
   case pre1 =>
     mintro ∀s
@@ -192,17 +192,45 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     rcases heq
     split
     mspec (xs_triple (P := ⌜j = ↑lo + rpref.length ∧
-      (∀ (n_1 : Fin n), lo ≤ n_1 ∧ ↑n_1 < i → ¬lt (r.get hi) ((#gxs).get n_1) = true) ∧
-        (∀ (n_1 : Fin n), i ≤ ↑n_1 ∧ ↑n_1 < j → ¬lt ((#(gxs)).get n_1) (r.get hi) = true) ∧
+      (∀ (n_1 : Fin n), lo ≤ n_1 ∧ ↑n_1 < i → ¬lt ((#gxs).get hi) ((#gxs).get n_1) = true) ∧
+        (∀ (n_1 : Fin n), i ≤ ↑n_1 ∧ ↑n_1 < j → ¬lt (((#gxs)).get n_1) ((#gxs).get hi) = true) ∧
           ∃ M', M'.length = M.length ∧ (#(gxs)).val.toList = L ++ M' ++ R ∧ M'.Perm M⌝))
     split
-    let r' : Vector α _ := ⟨xs'.1.swap i j, (Array.size_swap ..).trans xs'.2⟩
-    have hrdef : r' = ⟨xs'.1.swap i j, (Array.size_swap ..).trans xs'.2⟩ := rfl
-    have hixs : r'.1[i] = xs'.1[j] := Array.getElem_swap_left (xs := xs'.1) (i := i) (j := j) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
-    have hjxs : r'.1[j] = xs'.1[i] := Array.getElem_swap_right (xs := xs'.1) (i := i) (j := j) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
+    let r' : SVal (PostShape.arg (ST α n) PostShape.pure).args (Vector α _) := ⌜⟨(#gxs).1.swap i j
+      (by
+        have := (#gxs).2
+        omega)
+      (by
+        have := (#gxs).2
+        omega)
+      , (Array.size_swap ..).trans (#gxs).2⟩⌝
+    mhave hrdef : ⌜(#r') = ⟨(#gxs).1.swap i j
+      (by
+        have := (#gxs).2
+        omega)
+      (by
+        have := (#gxs).2
+        omega)
+      , (Array.size_swap ..).trans (#gxs).2⟩⌝ := by
+        mintro ∀s
+        mpure h
+        mpure_intro
+        rfl
+    mhave hixs : ⌜(#r').1[i]'(by have := (#r').2; omega) = (#gxs).1[j]'(by have := (#gxs).2; omega)⌝ := by
+      mintro ∀s
+      mpure h
+      mpure_intro
+      exact Array.getElem_swap_left
+    mhave hjxs : ⌜(#r').1[j]'(by have := (#r').2; omega) = (#gxs).1[i]'(by have := (#gxs).2; omega)⌝ := by
+      mintro ∀s
+      mpure h
+      mpure_intro
+      exact Array.getElem_swap_right
+    -- have hhixs : r'.1[hi] = xs'.1[hi] := Array.getElem_swap_of_ne xs'.1 (i := i) (j := j) (k := hi) (hi := by get_elem_tactic) (hj := by get_elem_tactic) (by omega) (by omega) (by omega)
     all_goals mpure_intro
     . next hhihj =>
       simp
+      have hr' : r'.val[(hi : Nat)] = xs'.val[(hi : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
       refine ⟨?_, ?_, ?_, ?_⟩
       . omega
       intro x
@@ -214,7 +242,7 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
         rw [← hrdef]
         unfold Vector.get
         simp
-        rw [hixs]
+        rw [hixs, hr']
         exact hhihj
       else
         refine fun _ _ => ?_
@@ -226,7 +254,7 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
         unfold Vector.get
         simp only [Fin.getElem_fin] at hhixs
         simp only [Fin.getElem_fin]
-        rw [hhixs]
+        rw [hhixs, hr']
         apply hl _
         all_goals omega
       intro x
@@ -238,7 +266,7 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
         unfold Vector.get
         simp
         simp only [Vector.get, Fin.getElem_fin] at hr
-        rw [hjxs]
+        rw [hjxs, hr']
         apply hr ⟨i, by omega⟩
         simp only [Nat.le_refl]
         simp only
@@ -283,10 +311,27 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   let a := r.1[i]
   -- have : r.1.size = xs'.1.size := Array.size_swap xs'.1 i hi (hi := by get_elem_tactic) (hj := by get_elem_tactic)
   have : r.1.size = n := by omega
-  have : a = xs'.get hi := Array.getElem_swap_left
-  have : r.get hi = xs'.1[i] := Array.getElem_swap_right
-  have hrt' : ∀ (x : Fin n), i < x → x ≤ hi → lt (r.get x) a = false := sorry
-  have hl' : ∀ (x : Fin n), lo ≤ x → x < i → lt a (r.get x) = false := sorry
+  have hsl : a = xs'.get hi := Array.getElem_swap_left
+  have hsr : r.get hi = xs'.1[i] := Array.getElem_swap_right
+  have hrt' : ∀ (x : Fin n), i < x → x ≤ hi → lt (r.get x) a = false := by
+    intros x
+    if h : x = hi then
+      rw [h, hsl, hsr]
+      intros
+      exact (hrt ⟨i, by omega⟩ (by simp) (by omega))
+    else
+      rw [hsl]
+      intros
+      have hr : r.val[(x : Nat)] = xs'.val[(x : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
+      simp [Vector.get, hr]
+      exact (hrt ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
+  have hl' : ∀ (x : Fin n), lo ≤ x → x < i → lt a (r.get x) = false := by
+    intros x
+    rw [hsl]
+    intros
+    have hr : r.val[(x : Nat)] = xs'.val[(x : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
+    simp [Vector.get, hr]
+    exact (hl ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
   -- let M' := r.1[lo:hi + 1].toArray.toList
   let l := r.1[lo:i].toArray.toList
   let rt := r.1[i + 1:hi + 1].toArray.toList
