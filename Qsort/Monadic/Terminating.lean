@@ -97,7 +97,7 @@ theorem qpartition_prep_triple (xs : Vector α n)
     -- Therefore, showing it is deferred to the correctness proof for now.
     if hjhi : j < hi then
       have _ : i < hi := Nat.lt_of_le_of_lt hij hjhi
-      if lt (xs.1[j]) pivot then
+      if lt xs.1[j] xs.1[hi] then
         xs := ⟨xs.1.swap i j, (Array.size_swap ..).trans xs.2⟩
         i := i + 1
         j := j + 1
@@ -163,11 +163,11 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
       qpartition_prep xs lt lo hi
     ⦃⇓xs' => ∃ M', M'.length = M.length ∧ xs'.val.toList = L ++ M' ++ R ∧ M'.Perm M⦄ := (qpartition_prep_triple (lt := lt) xs lo hi hle hlo hhi hxs)
   mspec this
-  mspec 
+  mspec
   case inv => exact PostCond.total fun (⟨⟨(i, j), _⟩, xs'⟩, sp) =>
     j = lo + sp.rpref.length ∧
-    ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt (r.get hi) (xs'.get n))) ∧
-    ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt (xs'.get n) (r.get hi))) ∧
+    ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt (xs'.get hi) (xs'.get n))) ∧
+    ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt (xs'.get n) (xs'.get hi))) ∧
     ∃ M', M'.length = M.length ∧ xs'.val.toList = L ++ M' ++ R ∧ M'.Perm M
   case pre1 =>
     simp
@@ -193,6 +193,7 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     all_goals mpure_intro
     . next hhihj =>
       simp
+      have hr' : r'.val[(hi : Nat)] = xs'.val[(hi : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
       refine ⟨?_, ?_, ?_, ?_⟩
       . omega
       intro x
@@ -204,7 +205,7 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
         rw [← hrdef]
         unfold Vector.get
         simp
-        rw [hixs]
+        rw [hixs, hr']
         exact hhihj
       else
         refine fun _ _ => ?_
@@ -216,7 +217,7 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
         unfold Vector.get
         simp only [Fin.getElem_fin] at hhixs
         simp only [Fin.getElem_fin]
-        rw [hhixs]
+        rw [hhixs, hr']
         apply hl _
         all_goals omega
       intro x
@@ -228,7 +229,7 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
         unfold Vector.get
         simp
         simp only [Vector.get, Fin.getElem_fin] at hr
-        rw [hjxs]
+        rw [hjxs, hr']
         apply hr ⟨i, by omega⟩
         simp only [Nat.le_refl]
         simp only
@@ -273,10 +274,27 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   let a := r.1[i]
   -- have : r.1.size = xs'.1.size := Array.size_swap xs'.1 i hi (hi := by get_elem_tactic) (hj := by get_elem_tactic)
   have : r.1.size = n := by omega
-  have : a = xs'.get hi := Array.getElem_swap_left
-  have : r.get hi = xs'.1[i] := Array.getElem_swap_right
-  have hrt' : ∀ (x : Fin n), i < x → x ≤ hi → lt (r.get x) a = false := sorry
-  have hl' : ∀ (x : Fin n), lo ≤ x → x < i → lt a (r.get x) = false := sorry
+  have hsl : a = xs'.get hi := Array.getElem_swap_left
+  have hsr : r.get hi = xs'.1[i] := Array.getElem_swap_right
+  have hrt' : ∀ (x : Fin n), i < x → x ≤ hi → lt (r.get x) a = false := by
+    intros x
+    if h : x = hi then
+      rw [h, hsl, hsr]
+      intros
+      exact (hrt ⟨i, by omega⟩ (by simp) (by omega))
+    else
+      rw [hsl]
+      intros
+      have hr : r.val[(x : Nat)] = xs'.val[(x : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
+      simp [Vector.get, hr]
+      exact (hrt ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
+  have hl' : ∀ (x : Fin n), lo ≤ x → x < i → lt a (r.get x) = false := by
+    intros x
+    rw [hsl]
+    intros
+    have hr : r.val[(x : Nat)] = xs'.val[(x : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
+    simp [Vector.get, hr]
+    exact (hl ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
   -- let M' := r.1[lo:hi + 1].toArray.toList
   let l := r.1[lo:i].toArray.toList
   let rt := r.1[i + 1:hi + 1].toArray.toList

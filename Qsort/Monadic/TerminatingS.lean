@@ -183,20 +183,23 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     intro iv rpref a rsuff _
     rcases iv with ⟨⟨i, j⟩, _⟩
     mintro h
-    mpure h
-    simp at h
-    rcases h with ⟨hj, hl, hr, hM⟩
+    simp only
+    -- mpure h
+    -- simp at h
+    -- rcases h with ⟨hj, hl, hr, hM⟩
     split
     next heq =>
     rcases heq
     split
+    mspec (xs_triple (P := ⌜j = ↑lo + rpref.length ∧
+      (∀ (n_1 : Fin n), lo ≤ n_1 ∧ ↑n_1 < i → ¬lt (r.get hi) ((#gxs).get n_1) = true) ∧
+        (∀ (n_1 : Fin n), i ≤ ↑n_1 ∧ ↑n_1 < j → ¬lt ((#(gxs)).get n_1) (r.get hi) = true) ∧
+          ∃ M', M'.length = M.length ∧ (#(gxs)).val.toList = L ++ M' ++ R ∧ M'.Perm M⌝))
     split
     let r' : Vector α _ := ⟨xs'.1.swap i j, (Array.size_swap ..).trans xs'.2⟩
     have hrdef : r' = ⟨xs'.1.swap i j, (Array.size_swap ..).trans xs'.2⟩ := rfl
-    -- have : r.1.size = xs'.1.size := Array.size_swap xs'.1 i hi (hi := by get_elem_tactic) (hj := by get_elem_tactic)
     have hixs : r'.1[i] = xs'.1[j] := Array.getElem_swap_left (xs := xs'.1) (i := i) (j := j) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
     have hjxs : r'.1[j] = xs'.1[i] := Array.getElem_swap_right (xs := xs'.1) (i := i) (j := j) (hi := by get_elem_tactic) (hj := by get_elem_tactic)
-    -- have hhixs : r'.1[hi] = xs'.1[hi] := Array.getElem_swap_of_ne xs'.1 (i := i) (j := j) (k := hi) (hi := by get_elem_tactic) (hj := by get_elem_tactic) (by omega) (by omega) (by omega)
     all_goals mpure_intro
     . next hhihj =>
       simp
