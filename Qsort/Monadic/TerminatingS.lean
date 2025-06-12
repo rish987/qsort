@@ -272,6 +272,7 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     rw [Nat.add_comm] at this
     contradiction
   rcases r with ⟨⟨i, j⟩, _⟩
+  mintro ∀s
   mpure h
   simp at h
   rcases h with ⟨hj, hl, hrt, hM⟩

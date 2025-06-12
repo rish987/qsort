@@ -82,7 +82,7 @@ theorem qpartition_prep_triple (xs : Vector α n)
 /-- Partitions `xs[lo..=hi]`, returning a pivot point and the new array. -/
 @[inline] def qpartition (xs : Vector α n)
     (lt : α → α → Bool) (lo hi : Fin n) (hle : lo ≤ hi) :
-    Idd $ Vector α n × {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
+    Idd $ Vector α n ×' (pivot : Fin n) ×' (lo ≤ pivot ∧ pivot ≤ hi) := do
   let mut xs ← qpartition_prep xs lt lo hi
   let pivot := xs.1[hi.cast xs.2.symm]
   -- we must keep track of i and j and their respective properties all together within a single subtype,
@@ -107,7 +107,7 @@ theorem qpartition_prep_triple (xs : Vector α n)
         inv := ⟨(i, j), hloi, by omega, by omega⟩
   let ⟨(i, _), hloi, hihi, _⟩ := inv
   xs ← pure ⟨xs.1.swap i hi, (Array.size_swap ..).trans xs.2⟩
-  pure ⟨xs, ⟨i, hloi, hihi⟩⟩
+  pure ⟨xs, ⟨i, by omega⟩, ⟨hloi, hihi⟩⟩
   -- loop xs lo lo ⟨Nat.le_refl _, Nat.le_refl _, hle⟩
 
 -- hi - lo > hi - mid - 1
@@ -151,11 +151,11 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     :
    ⦃⌜True⌝⦄
    qpartition xs lt lo hi hle
-   ⦃⇓ (xs', pivot) => ∃ (l r : List α) (a : α),
-     M.length = l.length + 1 + r.length ∧
-     lo + l.length = pivot ∧
-     xs'.1.toList = L ++ l ++ a::r ++ R ∧ (∀ b ∈ l, ¬lt a b) ∧ (∀ b ∈ r, ¬lt b a) ∧
-     (l ++ a::r).Perm M⦄ := by
+   ⦃⇓ ⟨xs', pivot, _⟩ => ∃ (M' : List α),
+     M.length = M'.length ∧
+     -- lo + l.length = pivot ∧
+     xs'.1.toList = L ++ M' ++ R ∧ (∀ i (hlo : lo ≤ i) (hp : i < pivot), ¬lt (xs.get pivot) (xs.get i)) ∧ (∀ (i : Fin n) (hp : pivot < i) (hhi : i ≤ hi), ¬lt (xs.get i) (xs.get pivot)) ∧
+     M'.Perm M⦄ := by
   unfold qpartition
   mintro -
   let this :
@@ -251,50 +251,44 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   have hin : i < n := by get_elem_tactic
   let r : Vector α n := ⟨xs'.1.swap i hi, (Array.size_swap ..).trans xs'.2⟩
   let a := r.1[i]
-  -- have : r.1.size = xs'.1.size := Array.size_swap xs'.1 i hi (hi := by get_elem_tactic) (hj := by get_elem_tactic)
-  have : r.1.size = n := by omega
-  have hsl : a = xs'.get hi := Array.getElem_swap_left
-  have hsr : r.get hi = xs'.1[i] := Array.getElem_swap_right
-  have hrt' : ∀ (x : Fin n), i < x → x ≤ hi → lt (r.get x) a = false := by
-    intros x
-    if h : x = hi then
-      rw [h, hsl, hsr]
-      intros
-      exact (hrt ⟨i, by omega⟩ (by simp) (by omega))
-    else
-      rw [hsl]
-      intros
-      have hr : r.val[(x : Nat)] = xs'.val[(x : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
-      simp [Vector.get, hr]
-      exact (hrt ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
-  have hl' : ∀ (x : Fin n), lo ≤ x → x < i → lt a (r.get x) = false := by
-    intros x
-    rw [hsl]
-    intros
-    have hr : r.val[(x : Nat)] = xs'.val[(x : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
-    simp [Vector.get, hr]
-    exact (hl ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
-  -- let M' := r.1[lo:hi + 1].toArray.toList
   let l := r.1[lo:i].toArray.toList
   let rt := r.1[i + 1:hi + 1].toArray.toList
   have hr : r.1.toList = L ++ l ++ a :: rt ++ R := sorry
   simp at hr
   mpure_intro
   simp
-  have hl : ∀ (b : α), b ∈ l ↔ ∃ (x : Fin n), lo ≤ x ∧ x < i ∧ r.get x = b := sorry
-  have hrt : ∀ (b : α), b ∈ rt ↔ ∃ (x : Fin n), i < x ∧ x ≤ hi ∧ r.get x = b := sorry
   have : l.length = i - lo := by sorry
   have : rt.length = (hi + 1) - (i + 1) := by sorry
   have : M.length = hi + 1 - lo := by omega
+  have hrt' : ∀ (b : α), b ∈ rt ↔ ∃ (x : Fin n), i < x ∧ x ≤ hi ∧ r.get x = b := sorry
   refine ⟨l, rt, by omega, by omega, a, hr, ?_, ?_, sorry⟩
+  . 
+    have hl' : ∀ (b : α), b ∈ l ↔ ∃ (x : Fin n), lo ≤ x ∧ x < i ∧ r.get x = b := sorry
+    intro b
+    unfold a
+    rw [hl']
+    rintro ⟨x, ⟨h1, h2, rfl⟩⟩
+    rw [Array.getElem_swap_left]
+    intros
+    simp [Vector.get]
+    rw [Array.getElem_swap_of_ne (by omega) (by omega) (by omega)]
+    exact (hl ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
   intro b
-  rw [hl]
+  rw [hrt']
   rintro ⟨x, ⟨h1, h2, rfl⟩⟩
-  apply hl' x h1 h2
-  intro b
-  rw [hrt]
-  rintro ⟨x, ⟨h1, h2, rfl⟩⟩
-  apply hrt' x h1 h2
+  unfold a
+  unfold r
+  if h : x = hi then
+    simp [Vector.get]
+    intros
+    rw [h, Array.getElem_swap_right]
+    exact (hrt ⟨i, by omega⟩ (by simp) (by simp; omega))
+  else
+    simp [Vector.get]
+    intros
+    -- have hr : r.val[(x : Nat)] = xs'.val[(x : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
+    rw [Array.getElem_swap_of_ne (by omega) (by omega) (by omega)]
+    exact (hrt ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
 
 -- #eval #[1, 2, 3, 4][1:3].toArray
 
@@ -312,8 +306,8 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
     -- TODO fix bug of state not changing/no errmsg when changing angle brackets to parens
     . mspec (qpartition_triple le_asymm le_trans _ _ _ _ hlo (hhi hM) hxs)
       mpure h
-      rcases r with ⟨xs', pivot⟩
-      rcases h with ⟨l, rt, a, hMlrt, hM', hxs', hl, hrt, hlrP⟩
+      rcases r with ⟨xs', pivot, _⟩
+      rcases h with ⟨M', hMlrt, hM', hxs', hl, hrt, hlrP⟩
       split
       next as' mid hmlo hmhi heq =>
       simp at heq
@@ -322,14 +316,9 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
       simp at hM'
       simp at hxs'
       -- cases
-      have :
-       ⦃⌜True⌝⦄
-       qsort' lt xs' lo ⟨mid - 1, by omega⟩
-       ⦃⇓ ret => ∃ l', l'.length = l.length ∧ ret.1.toList = L ++ l' ++ (a::rt ++ R) ∧ l'.Pairwise (fun a b => ¬lt b a) ∧ l'.Perm l⦄ :=
-       (sorted_triple' le_asymm le_trans xs' lo ⟨mid - 1, by omega⟩ L l (a::rt ++ R) (by assumption) (by
+      mspec (sorted_triple' le_asymm le_trans xs' lo ⟨mid - 1, by omega⟩ L l (a::rt ++ R) (by assumption) (by
          simp
          omega) (by simp_all))
-      mspec this
       mpure h
       rcases h with ⟨l', hl'eq, hl'dec, hl'sorted, hpl'⟩
       simp at hl'dec
