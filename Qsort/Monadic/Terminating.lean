@@ -309,23 +309,13 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
       simp at hM'
       simp at hxs'
       -- cases
-      have :
-       ⦃⌜True⌝⦄
-       qsort' lt xs' lo ⟨mid - 1, by omega⟩
-       ⦃⇓ ret => ∃ l', l'.length = l.length ∧ ret.1.toList = L ++ l' ++ (a::rt ++ R) ∧ l'.Pairwise (fun a b => ¬lt b a) ∧ l'.Perm l⦄ :=
-       (sorted_triple' le_asymm le_trans xs' lo ⟨mid - 1, by omega⟩ L l (a::rt ++ R) (by assumption) (by
+      mspec (sorted_triple' le_asymm le_trans xs' lo ⟨mid - 1, _⟩ L l (a::rt ++ R) (by assumption) (by
          simp
          omega) (by simp_all))
-      mspec this
       mpure h
       rcases h with ⟨l', hl'eq, hl'dec, hl'sorted, hpl'⟩
       simp at hl'dec
-      have :
-       ⦃⌜True⌝⦄
-       qsort' lt r (mid + 1) hi
-       ⦃⇓ ret => ∃ rt', rt'.length = rt.length ∧ ret.1.toList = (L ++ l' ++ [a]) ++ rt' ++ R ∧ rt'.Pairwise (fun a b => ¬lt b a) ∧ rt'.Perm rt⦄ :=
-       (sorted_triple' le_asymm le_trans r (mid + 1) hi (L ++ l' ++ [a]) rt R (by simp; subst hlo; rw [hl'eq]; omega) (by simp; omega) (by simpa))
-      mspec this
+      mspec (sorted_triple' le_asymm le_trans r (mid + 1) hi (L ++ l' ++ [a]) rt R (by simp; subst hlo; rw [hl'eq]; omega) (by simp; omega) (by simpa))
       mpure h
       mpure_intro
       simp
