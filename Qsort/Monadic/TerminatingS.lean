@@ -29,9 +29,9 @@ open List
 
 namespace Monadic
 
-abbrev Vector (α n) := {xs : Array α // xs.size = n}
-
 variable {α : Type} {n : Nat}
+
+abbrev Vector (α n) := {xs : Array α // xs.size = n}
 
 def Vector.get (xs : Vector α n) (i : Fin n) := xs.1[Fin.mk (i : Nat) (i.cast xs.2.symm).2]
 
@@ -40,11 +40,24 @@ def Vector.toList (xs : Vector α n) : List α := xs.1.toList
 structure ST (α n) where
   xs : Vector α n
 
-private abbrev gxs : SVal ((ST α n)::[]) (Vector α n) := fun s => SVal.pure s.xs
-
 abbrev SM := StateM (ST α n)
 
+abbrev ps := PostShape.arg (ST α n) PostShape.pure
+variable (FPre : Assertion (ps))
+variable {FPre1 FPre2 : Assertion (ps)}
+variable {FPost1 FPost2 : PostCond T (ps)}
+
+variable {F : StateM (ST α n) T}
+
+theorem multiEntails (hF1 : ⦃FPre1⦄ F ⦃FPost1⦄) (hF2 : ⦃FPre2⦄ F ⦃FPost2⦄) (hFF1 : FPre ⊢ₛ FPre1) (hFF1 : FPre ⊢ₛ FPre2)
+   : ⦃FPre⦄ F ⦃FPost1.and FPost2⦄ := by
+  sorry
+
+private abbrev gxs : SVal ((ST α n)::[]) (Vector α n) := fun s => SVal.pure s.xs
+
 def xs : StateM (ST α n) (Vector α n) := do pure $ (← get).xs
+
+def mxs (f : Vector α n → Vector α n) : StateM (ST α n) Unit := do modify fun s => {s with xs := f s.xs}
 
 @[spec]
 theorem xs_triple
@@ -54,8 +67,6 @@ theorem xs_triple
    ⦃⇓ r => P ∧ ⌜r = (#gxs)⌝⦄ := by
   unfold xs
   mvcgen
-
-def mxs (f : Vector α n → Vector α n) : StateM (ST α n) Unit := do modify fun s => {s with xs := f s.xs}
 
 @[spec]
 theorem mxs_triple
@@ -330,13 +341,86 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     exact (hrt ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
 
 -- #eval #[1, 2, 3, 4][1:3].toArray
+theorem perm_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
+    (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : M.length > 0 → lo + M.length = hi + 1)
+    :
+   ⦃⌜(#gxs).toList = L ++ M ++ R⌝⦄
+   qsort' lt lo hi
+   ⦃⇓ _ => ⌜∃ M', M'.length = M.length ∧ (#gxs).1.toList = L ++ M' ++ R ∧ M'.Perm M⌝⦄ := by
+  sorry
+--   if hM : M.length > 0 then
+--     unfold qsort'
+--     mintro h
+--     split
+--     -- TODO fix bug of state not changing/no errmsg when changing angle brackets to parens
+--     -- let this := (qpartition_triple le_asymm le_trans ⟨lo, sorry⟩ hi _ hlo (hhi hM))
+--     . mspec (qpartition_triple le_asymm le_trans ⟨lo, _⟩ hi _ hlo (hhi hM))
+--       mintro ∀s
+--       mpure h
+--       simp at h
+--       rcases r with ⟨pivot, _⟩
+--       rcases h with ⟨l, rt, hM', hMlrt, a, hxs', hl, hrt, hlrP⟩
+--       simp at hMlrt
+--       split
+--       next as' mid hmlo hmhi heq =>
+--       rcases heq
+--       mspec (sorted_triple' le_asymm le_trans lo ⟨pivot - 1, _⟩ L l (a::rt ++ R) (by assumption) (by
+--          simp
+--          omega))
+--       mintro ∀s'
+--       mpure h
+--       rcases h with ⟨l', hl'eq, hl'dec, hl'sorted, hpl'⟩
+--       simp at hl'dec
+--       mspec (sorted_triple' le_asymm le_trans (pivot + 1) hi (L ++ l' ++ [a]) rt R (by simp; subst hlo; rw [hl'eq]; omega) (by simp; omega))
+--       mintro ∀s''
+--       mpure h
+--       mpure_intro
+--       simp
+--       simp at h
+--       rcases h with ⟨rt', hrt'eq, hrt'dec, hrt'sorted, hprt'⟩
+--       refine ⟨l' ++ a::rt', sorry, by simpa, ?_⟩
+--       simp only [List.pairwise_append]
+--       simp only [List.pairwise_cons]
+--       -- simp only [forall_mem_cons, l'.mem_iff_get, rt'.mem_iff_get]
+--       simp only [List.forall_mem_cons]
+--       simp at hl'sorted
+--       simp at le_trans
+--       refine ⟨⟨hl'sorted, ⟨fun x => ?_, hrt'sorted⟩, fun x h => ⟨?_, fun y h' => ?_⟩⟩, ?_⟩
+--       rw [hprt'.mem_iff]
+--       apply hrt
+--       rw [hpl'.mem_iff] at h
+--       apply (hl _ h)
+--       rw [hpl'.mem_iff] at h
+--       rw [hprt'.mem_iff] at h'
+--       exact le_trans (hrt y h') (hl x h)
+--       sorry
+--       simp_all
+--       assumption
+--       simpa
+--       -- simp only [pairwise_append, pairwise_cons, forall_mem_cons, rr.mem_iff, ll.mem_iff]
+--     have : lo = hi := sorry
+--     have : M.length = 1 := by omega
+--     mintro ∀s
+--     mpure h
+--     simp at h
+--     mpure_intro -- TODO should automatically remove `spred`
+--     simp [Bool.not_eq_true, SPred.and_nil, SPred.exists_nil]
+--     refine ⟨M, rfl, by rw [← h]; rfl, ?_⟩
+--     have : ∃ x, M = [x] := by sorry
+--     rw [this.choose_spec]
+--     simp
+--   else
+--     simp at hM
+--     subst hM
+--     sorry
+-- termination_by hi - lo
 
 theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
     (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : M.length > 0 → lo + M.length = hi + 1)
     :
    ⦃⌜(#gxs).toList = L ++ M ++ R⌝⦄
    qsort' lt lo hi
-   ⦃⇓ _ => ⌜∃ M', M'.length = M.length ∧ (#gxs).1.toList = L ++ M' ++ R ∧ M'.Pairwise (fun a b => ¬lt b a) ∧ M'.Perm M⌝⦄ := by
+   ⦃⇓ _ => ⌜∃ M', (#gxs).1.toList = L ++ M' ++ R ∧ M'.Pairwise (fun a b => ¬lt b a)⌝⦄ := by
   if hM : M.length > 0 then
     unfold qsort'
     mintro h
@@ -353,21 +437,28 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
       split
       next as' mid hmlo hmhi heq =>
       rcases heq
-      mspec (sorted_triple' le_asymm le_trans lo ⟨pivot - 1, _⟩ L l (a::rt ++ R) (by assumption) (by
+      have hs1 := (sorted_triple' le_asymm le_trans lo ⟨pivot - 1, sorry⟩ L l (a::rt ++ R) (by assumption) (by
          simp
          omega))
+      have hp1 := (perm_triple' (n := n) le_asymm le_trans lo ⟨pivot - 1, sorry⟩ L l (a::rt ++ R) (by assumption) (by
+         simp
+         omega))
+      -- have := (multiEntails hs1 hp1 sorry sorry)
+      mspec (multiEntails (FPre := ⌜(#gxs).toList = L ++ l ++ (a :: rt ++ R)⌝) hs1 hp1 sorry sorry)
       mintro ∀s'
       mpure h
-      rcases h with ⟨l', hl'eq, hl'dec, hl'sorted, hpl'⟩
+      rcases h with ⟨l', hl'dec, hl'sorted⟩
       simp at hl'dec
-      mspec (sorted_triple' le_asymm le_trans (pivot + 1) hi (L ++ l' ++ [a]) rt R (by simp; subst hlo; rw [hl'eq]; omega) (by simp; omega))
+      -- mspec (sorted_triple' le_asymm le_trans (pivot + 1) hi (L ++ l' ++ [a]) rt R (by simp; subst hlo; rw [List.Perm.length_eq hpl']; omega) (by simp; omega))
+      have := (sorted_triple' le_asymm le_trans (pivot + 1) hi (L ++ l' ++ [a]) rt R sorry (by simp; omega))
+      mspec this
       mintro ∀s''
       mpure h
       mpure_intro
       simp
       simp at h
-      rcases h with ⟨rt', hrt'eq, hrt'dec, hrt'sorted, hprt'⟩
-      refine ⟨l' ++ a::rt', sorry, by simpa, ?_⟩
+      rcases h with ⟨rt', hrt'dec, hrt'sorted, hprt'⟩
+      refine ⟨l' ++ a::rt',  by simpa, ?_⟩
       simp only [List.pairwise_append]
       simp only [List.pairwise_cons]
       -- simp only [forall_mem_cons, l'.mem_iff_get, rt'.mem_iff_get]
@@ -394,7 +485,7 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
     simp at h
     mpure_intro -- TODO should automatically remove `spred`
     simp [Bool.not_eq_true, SPred.and_nil, SPred.exists_nil]
-    refine ⟨M, rfl, by rw [← h]; rfl, ?_⟩
+    refine ⟨M, by rw [← h]; rfl, ?_⟩
     have : ∃ x, M = [x] := by sorry
     rw [this.choose_spec]
     simp
@@ -407,7 +498,7 @@ termination_by hi - lo
 theorem sorted_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) (xs : Array α) :
    ⦃⌜True⌝⦄
    qsort xs lt
-   ⦃⇓ xs' => xs'.toList.Pairwise (fun a b => ¬lt b a)⦄
+   ⦃⇓ xs' => xs'.toList.Pairwise (fun a b => ¬lt b a) ∧ xs'.Perm xs⦄
    := by
   unfold qsort
   split
@@ -419,8 +510,10 @@ theorem sorted_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : 
     simp at h
     mspec
     simp_all
-    rcases h with ⟨_, _, h, r, _⟩
-    simpa [h]
+    rcases h with ⟨h, hP⟩
+    simp at h
+    simp [Array.perm_iff_toList_perm]
+    split_ands; all_goals assumption
   . next h =>
     simp at h
     subst h
@@ -428,5 +521,5 @@ theorem sorted_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : 
     simp
 
 theorem sorted (xs : Array α) {lt : α → α → Bool} (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) :
-    (qsort xs lt).run.toList.Pairwise (fun a b => ¬lt b a) := by
+    (qsort xs lt).run.toList.Pairwise (fun a b => ¬lt b a) ∧ (qsort xs lt).run.Perm xs := by
   exact sorted_triple le_asymm le_trans (α := α) xs True.intro
