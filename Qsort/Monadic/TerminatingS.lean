@@ -221,17 +221,16 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
         rw [Array.getElem_swap_left, Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
         exact hhihj
       else
-        simp
-        refine fun _ _ => ?_
+        intros
         rw [Vector.get, Fin.getElem_fin]
-        simp only [Vector.get, Fin.getElem_fin]
+        simp [Vector.get]
         rw [Array.getElem_swap_of_ne, Array.getElem_swap_of_ne]
         apply hl _
         all_goals omega
       if h' : x = j then
         simp -- FIXME
         subst h'
-        rintro _ _
+        intros
         simp [Vector.get, Fin.getElem_fin]
         rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
         apply hr ⟨i, by omega⟩
@@ -239,22 +238,27 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
         simp only
         omega
       else
-        -- refine fun _ => ?_
-        -- have : x < i := by omega
-        -- have : (x : Nat) ≠ i := by omega
-        -- have : (x : Nat) ≠ j := by omega
-        -- have hhixs : r'.1[x] = xs'.1[x] := Array.getElem_swap_of_ne xs'.1 (i := i) (j := j) (k := x) (hi := by get_elem_tactic) (hj := by get_elem_tactic) (by omega) (by omega) (by omega)
-        -- rw [← hrdef, Vector.get, Fin.getElem_fin]
-        -- unfold Vector.get
-        -- simp only [Fin.getElem_fin] at hhixs
-        -- simp only [Fin.getElem_fin]
-        -- rw [hhixs]
-        -- simp
-        -- apply hl _
-        -- all_goals omega
-        sorry
+        intros
+        simp [Vector.get]
+        rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
+        rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
+        apply hr _ (by omega) (by omega)
       sorry
-    sorry
+    . next hhihj =>
+      mpure_intro
+      simp
+      refine ⟨by omega, fun x => ?_, fun x => ?_, ?_⟩
+      apply hl _ 
+      if h' : x = j then
+        subst h'
+        intros
+        simp [Vector.get, Fin.getElem_fin]
+        simp at hhihj
+        exact hhihj
+      else
+        intros
+        apply hr _ (by omega) (by omega)
+      sorry
     -- have : j < hi := by omega
     have : (rpref.reverse ++ a :: rsuff).length = hi - lo := by sorry
     simp at this
