@@ -22,6 +22,7 @@ def Vector.toList (xs : Vector α n) : List α := xs.1.toList
 structure ST (α n) where
   xs : Vector α n
 
+-- TODO generalize to any monad with `ST α n` in `PostShape.args`
 abbrev SM := StateM (ST α n)
 
 abbrev ps := PostShape.arg (ST α n) PostShape.pure
@@ -31,41 +32,33 @@ variable {FPost1 FPost2 : PostCond T (ps)}
 
 variable {F : StateM (ST α n) T}
 
-theorem multiEntails (hF1 : ⦃FPre1⦄ F ⦃FPost1⦄) (hF2 : ⦃FPre2⦄ F ⦃FPost2⦄) (hFF1 : FPre ⊢ₛ FPre1) (hFF1 : FPre ⊢ₛ FPre2)
-   : ⦃FPre⦄ F ⦃FPost1.and FPost2⦄ := by
-  sorry
+-- TODO generalize
+theorem multiEntails (hF1 : ⦃FPre1⦄ F ⦃FPost1⦄) (hF2 : ⦃FPre2⦄ F ⦃FPost2⦄) (hFF1 : FPre ⊢ₛ FPre1) (hFF2 : FPre ⊢ₛ FPre2)
+   : ⦃FPre⦄ F ⦃FPost1 ∧ₚ FPost2⦄ :=
+   (SPred.and_intro hFF1 hFF2).trans (Triple.and F hF1 hF2)
 
-private abbrev gxs : SVal ((ST α n)::[]) (Vector α n) := fun s => SVal.pure s.xs
+abbrev xs : SVal ((ST α n)::[]) (Vector α n) := fun s => SVal.pure s.xs
 
-def xs : StateM (ST α n) (Vector α n) := do pure $ (← get).xs
+def gxs : StateM (ST α n) (Vector α n) := do pure $ (← get).xs
+def g : StateM (ST α n) (ST α n) := do pure $ (← get)
 
 def mxs (f : Vector α n → Vector α n) : StateM (ST α n) Unit := do modify fun s => {s with xs := f s.xs}
 
-@[spec]
-theorem xs_triple
-    :
-   ⦃P⦄
-   xs (α := α) (n := n)
-   ⦃⇓ r => P ∧ ⌜r = (#gxs)⌝⦄ := by
-  unfold xs
-  mvcgen
-
-@[spec]
-theorem mxs_triple
-    :
-   ⦃⌜#gxs = r⌝⦄
-   mxs (α := α) (n := n) f
-   ⦃⇓ _ => ⌜#gxs = f r⌝⦄ := by
-  unfold mxs
-  mintro h ∀s
-  mpure h
-  simp at h
-  mvcgen
-  simp
-  congr
+-- @[spec]
+-- theorem Specs.modifyGet_StateT' {m : Type → Type u} {ps : PostShape} {σ α : Type} {f : σ → α × σ}
+--    {Q : PostCond α (PostShape.arg σ ps)} [Monad m] [WPMonad m ps] :
+--    ⦃fun s => Q.1 (f s).1 (f s).2⦄ (MonadState.modifyGet f : StateT σ m α) ⦃Q⦄ := by
+--   mvcgen
+--
+-- @[spec]
+-- theorem Specs.modify_StateT  [Monad m] [WPMonad m psm] :
+--   ⦃fun s => Q.1 () (f s)⦄ (modify f : StateT σ m Unit) ⦃Q⦄ := by
+--     mintro _
+--     unfold modify
+--     mvcgen
 
 def qpartition_maybeSwap (lt : α → α → Bool) (lo hi : Fin n) : StateM (ST α n) Unit := do
-  if lt ((← xs).get hi) ((← xs).get lo) then
+  if lt ((← get).xs.get hi) ((← get).xs.get lo) then
     mxs fun xs => ⟨xs.1.swap lo hi, (Array.size_swap ..).trans xs.2⟩
 
 def qpartition_prep
@@ -82,12 +75,10 @@ def qpartition_prep
     (lt : α → α → Bool) (lo hi : Fin n) (hle : lo ≤ hi) :
     StateM (ST α n) $ {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
   qpartition_prep lt lo hi
-  let pivot := (← xs).get hi
+  let pivot := (← get).xs.get hi
   -- we must keep track of i and j and their respective properties all together within a single subtype,
   -- because these dependent properties must be shown in parallel to reassigning the indices
   let mut inv : {t : Nat × Nat // lo ≤ t.1 ∧ t.1 ≤ hi ∧ t.1 ≤ t.2} := ⟨(lo, lo), by omega, by omega⟩
-  -- let mut i : Nat := lo
-  -- let mut ihs : lo ≤ i ∧ i ≤ hi := sorry
   for _ in [lo:hi] do
     let mut ⟨(i, j), hloi, hihi, hij⟩ := inv
     -- NOTE: `j < hi` is actually always the case. It would be easy to show if we could somehow bind `j`
@@ -95,7 +86,7 @@ def qpartition_prep
     -- Therefore, showing it is deferred to the correctness proof for now.
     if hjhi : j < hi then
       have _ : i < hi := Nat.lt_of_le_of_lt hij hjhi
-      let xs := (← xs) -- FIXME
+      let xs := (← get).xs -- FIXME
       if lt (xs.get ⟨j, by omega⟩) (xs.get ⟨hi, by omega⟩) then
         mxs fun xs => ⟨(xs).1.swap i j, (Array.size_swap ..).trans xs.2⟩
         i := i + 1
@@ -116,15 +107,6 @@ def qsort' {n} (lt : α → α → Bool)
     qsort' lt lo ⟨mid - 1, by omega⟩
     qsort' lt (mid + 1) hi
 termination_by hi - lo
--- decreasing_by
---   unfold newHi at *
---   simp_all
---   omega
---   unfold newHi at *
---   simp_all
---   omega
--- #print qsort'._unary
--- #print qsort'.eq_def
 
 /-- Sort the array `xs[low..=high]` using comparator `lt`. -/
 @[inline] def qsort (xs : Array α) (lt : α → α → Bool) :
@@ -135,14 +117,25 @@ termination_by hi - lo
 
 variable {lt : α → α → Bool} (lt_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
 
+-- FIXME mspec should be able to derive this triple, ideally
+-- TODO try mvcgen instead wherever this is used, perhaps that's the exact use case?
+@[spec]
+theorem mxs_triple
+    :
+   ⦃fun s => Q.1 () ({s with xs := f s.xs})⦄
+   mxs (α := α) (n := n) f
+   ⦃Q⦄ := by
+  unfold mxs
+  mvcgen
+
 theorem qpartition_maybeSwap_triple
     (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi) {L M R : List α}
     (hlo : L.length = lo.1) (hhi : lo.1 + M.length = hi + 1)
     :
-   ⦃⌜(#gxs).toList = L ++ M ++ R⌝⦄
+   ⦃⌜(#xs).toList = L ++ M ++ R⌝⦄
    qpartition_maybeSwap lt lo hi
    ⦃⇓ _ => ⌜∃ (M' : List α),
-     (#gxs).toList = L ++ M' ++ R ∧
+     (#xs).toList = L ++ M' ++ R ∧
      M'.Perm M⌝⦄ := by
   sorry
 
@@ -150,41 +143,44 @@ theorem qpartition_prep_triple
     (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi) {L M R}
     (hlo : L.length = lo.1) (hhi : lo.1 + M.length = hi + 1)
     :
-   ⦃⌜(#gxs).toList = L ++ M ++ R⌝⦄
+   ⦃⌜(#xs).toList = L ++ M ++ R⌝⦄
    qpartition_prep lt lo hi
    ⦃⇓ _ => ⌜∃ (M' : List α),
-     (#gxs).toList = L ++ M' ++ R ∧
+     (#xs).toList = L ++ M' ++ R ∧
      M'.Perm M⌝⦄ := by
   sorry
 
--- set_option pp.all true in
+@[spec]
+theorem Specs.get_StateT' [Monad m] [WPMonad m psm] :
+  ⦃fun s => Q.1 s s⦄ (MonadState.get : StateT σ m σ) ⦃Q⦄ := by sorry
+
+-- set_option pp.proofs true in
 theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
     (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi) {L M R}
     (hlo : L.length = lo.1) (hhi : lo.1 + M.length = hi + 1)
     :
-   ⦃⌜(#gxs).toList = L ++ M ++ R⌝⦄
+   ⦃⌜(#xs).toList = L ++ M ++ R⌝⦄
    qpartition lt lo hi hle
    ⦃⇓ pivot => ⌜∃ (l r : List α) (a : α),
      lo + l.length = pivot ∧
-     (#gxs).toList = L ++ l ++ a::r ++ R ∧ (∀ b ∈ l, ¬lt a b) ∧ (∀ b ∈ r, ¬lt b a) ∧
+     (#xs).toList = L ++ l ++ a::r ++ R ∧ (∀ b ∈ l, ¬lt a b) ∧ (∀ b ∈ r, ¬lt b a) ∧
      (l ++ a::r).Perm M⌝⦄ := by
   unfold qpartition
   mintro h
   mspec (qpartition_prep_triple (lt := lt) lo hi hle hlo hhi)
-  mspec (xs_triple (P := ⌜∃ M', (#gxs).toList = L ++ M' ++ R ∧ M'.Perm M⌝))
-  mspec 
+  -- mspec (xs_triple (P := ⌜∃ M', (#xs).toList = L ++ M' ++ R ∧ M'.Perm M⌝))
+  mspec
+  mspec
   case inv => exact PostCond.total fun (⟨⟨i, j⟩, _⟩, sp) =>
     ⌜ j = lo + sp.rpref.length ∧
-    ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt ((#gxs).get hi) ((#gxs).get n))) ∧
-    ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt ((#gxs).get n) ((#gxs).get hi))) ∧
-    ∃ M', (#gxs).val.toList = L ++ M' ++ R ∧ M'.Perm M⌝
+    ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt ((#xs).get hi) ((#xs).get n))) ∧
+    ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt ((#xs).get n) ((#xs).get hi))) ∧
+    ∃ M', (#xs).val.toList = L ++ M' ++ R ∧ M'.Perm M⌝
   case pre1 =>
-    mintro ∀s
-    mpure h
     simp at h
     -- rcases h with ⟨M, h, h'⟩
     simp
-    refine ⟨by omega, by omega, h.1⟩
+    refine ⟨by omega, by omega, h⟩
   case step =>
     intro iv rpref a rsuff _
     rcases iv with ⟨⟨i, j⟩, _⟩
@@ -202,11 +198,7 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     next heq =>
     rcases heq
     split
-    mspec (xs_triple (P := fun s' => s = s'))
-    mintro ∀s'
-    mpure h
-    have : s = s' ∧ r = s'.xs := h
-    rcases h with ⟨rfl, rfl⟩
+    mspec
     split
     . next hhihj =>
       mspec
@@ -266,7 +258,7 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     subst hj
     rw [Nat.add_comm] at this
     contradiction
-  rcases r with ⟨⟨i, j⟩, _⟩
+  rcases r with ⟨⟨i, j⟩, hij⟩
   mintro ∀s
   mpure h
   simp at h
@@ -274,25 +266,27 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   have hj : j = hi := by omega
   rcases hj
   split
-  next heq =>
+  next hihi _ heq =>
   rcases heq
   -- let r := xs'.val.swap i hi _ _
   mspec
-  mintro ∀s'
-  mpure h
-  simp at h
-  let r := s'.xs
-  have hr : r = s'.xs := rfl
-  let l := s'.xs.1[lo:i].toArray.toList
-  let rt := s'.xs.1[i + 1:hi + 1].toArray.toList
+  -- FIXME how to avoid?
+  let xs' : Vector α n := ⟨s.xs.val.swap i (↑hi) (qpartition._proof_21 lo hi hle ⟨(i, ↑hi), hij⟩ i (↑hi) hihi s.xs)
+          (qpartition._proof_22 lo hi hle ⟨(i, ↑hi), hij⟩ i (↑hi) s.xs),
+        qpartition._proof_23 lo hi hle ⟨(i, ↑hi), hij⟩ i (↑hi) hihi s.xs⟩
+  let s' : ST α n := { s with xs := xs' }
+  let r := xs'
+  have hr : r = xs' := rfl
+  let l := xs'.1[lo:i].toArray.toList
+  let rt := xs'.1[i + 1:hi + 1].toArray.toList
   have : l.length = i - lo := by sorry
   have : rt.length = (hi + 1) - (i + 1) := by sorry
   -- have : M.length = hi + 1 - lo := by omega
-  have hrt' : ∀ (b : α), b ∈ rt ↔ ∃ (x : Fin n), i < x ∧ x ≤ hi ∧ s'.xs.get x = b := sorry
+  have hrt' : ∀ (b : α), b ∈ rt ↔ ∃ (x : Fin n), i < x ∧ x ≤ hi ∧ s.xs.get x = b := sorry
   mpure_intro
   simp
-  rw [h]
-  rw [h] at hr
+  -- rw [h]
+  -- rw [h] at hr
   refine ⟨l, by omega, rt, r.1[i]'(by have := r.2; sorry /- FIXME omega here breaks pattern-matching -/ ), sorry, ?_, ?_, sorry⟩
   .
     rw [hr]
@@ -310,10 +304,10 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   rw [hrt']
   rintro ⟨x, ⟨h1, h2, rfl⟩⟩
   unfold r
-  rw [h]
   if h : x = hi then
     simp [Vector.get]
     intros
+    unfold xs'
     rw [h, Array.getElem_swap_right]
     exact (hrt ⟨i, by omega⟩ (by simp) (by simp; omega))
   else
@@ -327,17 +321,17 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
 theorem perm_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
     (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : M.length > 0 → lo + M.length = hi + 1)
     :
-   ⦃⌜(#gxs).toList = L ++ M ++ R⌝⦄
+   ⦃⌜(#xs).toList = L ++ M ++ R⌝⦄
    qsort' lt lo hi
-   ⦃⇓ _ => ⌜∃ M', (#gxs).1.toList = L ++ M' ++ R ∧ M'.Perm M⌝⦄ := by
+   ⦃⇓ _ => ⌜∃ M', (#xs).1.toList = L ++ M' ++ R ∧ M'.Perm M⌝⦄ := by
   sorry
 
 theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
     (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : M.length > 0 → lo + M.length = hi + 1)
     :
-   ⦃⌜(#gxs).toList = L ++ M ++ R⌝⦄
+   ⦃⌜(#xs).toList = L ++ M ++ R⌝⦄
    qsort' lt lo hi
-   ⦃⇓ _ => ⌜∃ M', (#gxs).1.toList = L ++ M' ++ R ∧ M'.Pairwise (fun a b => ¬lt b a)⌝⦄ := by
+   ⦃⇓ _ => ⌜∃ M', (#xs).1.toList = L ++ M' ++ R ∧ M'.Pairwise (fun a b => ¬lt b a)⌝⦄ := by
   if hM : M.length > 0 then
     unfold qsort'
     mintro h
@@ -365,7 +359,7 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
          simp
          omega))
       -- have := (multiEntails hs1 hp1 sorry sorry)
-      mspec (multiEntails (FPre := ⌜(#gxs).toList = L ++ l ++ (a :: rt ++ R)⌝) hs1 hp1 sorry sorry)
+      mspec (multiEntails (FPre := ⌜(#xs).toList = L ++ l ++ (a :: rt ++ R)⌝) hs1 hp1 sorry sorry)
       case refl.pre1 =>
         simpa
       mintro ∀s'
@@ -378,7 +372,7 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
 
       have hs2 := (sorted_triple' le_asymm le_trans (pivot + 1) hi (L ++ l' ++ [a]) rt R sorry (by simp; omega))
       have hp2 := (perm_triple' le_asymm le_trans (pivot + 1) hi (L ++ l' ++ [a]) rt R sorry (by simp; omega))
-      mspec (multiEntails (FPre := ⌜(#gxs).toList = L ++ l' ++ (a :: rt ++ R)⌝) hs2 hp2 sorry sorry)
+      mspec (multiEntails (FPre := ⌜(#xs).toList = L ++ l' ++ (a :: rt ++ R)⌝) hs2 hp2 sorry sorry)
       case intro.intro.intro.intro.intro.pre1 =>
         simpa
       mintro ∀s''
