@@ -99,20 +99,20 @@ def qpartition_prep
   mxs fun xs => ⟨xs.1.swap i hi, (Array.size_swap ..).trans xs.2⟩
   pure ⟨i, hloi, hihi⟩
 
-def qsort' {n} (lt : α → α → Bool)
+def qsort_rec {n} (lt : α → α → Bool)
     (lo : Nat) (hi : Fin n) : StateM (ST α n) Unit := do
   if h : lo < hi.1 then
     let ⟨mid, (_ : lo ≤ mid), _⟩ ←
       qpartition lt ⟨lo, Nat.lt_trans h hi.2⟩ hi (Nat.le_of_lt h)
-    qsort' lt lo ⟨mid - 1, by omega⟩
-    qsort' lt (mid + 1) hi
+    qsort_rec lt lo ⟨mid - 1, by omega⟩
+    qsort_rec lt (mid + 1) hi
 termination_by hi - lo
 
 /-- Sort the array `xs[low..=high]` using comparator `lt`. -/
 @[inline] def qsort (xs : Array α) (lt : α → α → Bool) :
     Idd (Array α) := do
   if h : xs.size > 0 then
-    pure $ (qsort' lt 0 ⟨xs.size - 1, by omega⟩).run { xs := ⟨xs, rfl⟩ } |>.2.xs
+    pure $ (qsort_rec lt 0 ⟨xs.size - 1, by omega⟩).run { xs := ⟨xs, rfl⟩ } |>.2.xs
   else pure xs
 
 variable {lt : α → α → Bool} (lt_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
@@ -128,7 +128,7 @@ theorem mxs_triple
   unfold mxs
   mvcgen
 
-theorem qpartition_maybeSwap_triple
+theorem qpartition_maybeSwap_perm
     (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi) {L M R : List α}
     (hlo : L.length = lo.1) (hhi : lo.1 + M.length = hi + 1)
     :
@@ -139,7 +139,7 @@ theorem qpartition_maybeSwap_triple
      M'.Perm M⌝⦄ := by
   sorry
 
-theorem qpartition_prep_triple
+theorem qpartition_prep_perm
     (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi) {L M R}
     (hlo : L.length = lo.1) (hhi : lo.1 + M.length = hi + 1)
     :
@@ -154,8 +154,23 @@ theorem qpartition_prep_triple
 theorem Specs.get_StateT' [Monad m] [WPMonad m psm] :
   ⦃fun s => Q.1 s s⦄ (MonadState.get : StateT σ m σ) ⦃Q⦄ := by sorry
 
+theorem qpartition_perm (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
+    (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi) {L M R}
+    (hlo : L.length = lo.1) (hhi : lo.1 + M.length = hi + 1)
+    :
+   ⦃⌜(#xs).toList = L ++ M ++ R⌝⦄
+   qpartition lt lo hi hle
+   ⦃⇓ pivot => ⌜∃ (M' : List α),
+     (#xs).toList = L ++ M' ++ R ∧
+     M'.Perm M⌝⦄ := by
+  sorry
+
+theorem swap_array_decomp {X : Array α} {A B C : List α} (hX : X.toList = A ++ B ++ C) (i j : Nat) (hi : i ≥ A.length) (hi' : i < A.length + B.length) (hj : j ≥ A.length) (hj' : j < A.length + B.length) : (X.swap (hi := sorry) (hj := sorry) i j).toList = A ++ ((Array.mk B).swap (hi := sorry) (hj := sorry) (i - A.length) (j - A.length)).toList ++ C := sorry
+
+theorem subarray_decomp {X : Array α} {A B C : List α} (hX : X.toList = A ++ B ++ C) : X[A.length:A.length + B.length].toArray.toList = B := sorry
+
 -- set_option pp.proofs true in
-theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
+theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
     (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi) {L M R}
     (hlo : L.length = lo.1) (hhi : lo.1 + M.length = hi + 1)
     :
@@ -163,11 +178,10 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
    qpartition lt lo hi hle
    ⦃⇓ pivot => ⌜∃ (l r : List α) (a : α),
      lo + l.length = pivot ∧
-     (#xs).toList = L ++ l ++ a::r ++ R ∧ (∀ b ∈ l, ¬lt a b) ∧ (∀ b ∈ r, ¬lt b a) ∧
-     (l ++ a::r).Perm M⌝⦄ := by
+     (#xs).toList = L ++ l ++ a::r ++ R ∧ (∀ b ∈ l, ¬lt a b) ∧ (∀ b ∈ r, ¬lt b a)⌝⦄ := by
   unfold qpartition
   mintro h
-  mspec (qpartition_prep_triple (lt := lt) lo hi hle hlo hhi)
+  mspec (qpartition_prep_perm (lt := lt) lo hi hle hlo hhi)
   -- mspec (xs_triple (P := ⌜∃ M', (#xs).toList = L ++ M' ++ R ∧ M'.Perm M⌝))
   mspec
   mspec
@@ -175,12 +189,12 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     ⌜ j = lo + sp.rpref.length ∧
     ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt ((#xs).get hi) ((#xs).get n))) ∧
     ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt ((#xs).get n) ((#xs).get hi))) ∧
-    ∃ M', (#xs).val.toList = L ++ M' ++ R ∧ M'.Perm M⌝
+    ∃ M', (#xs).val.toList = L ++ M' ++ R⌝
   case pre1 =>
     simp at h
     -- rcases h with ⟨M, h, h'⟩
     simp
-    refine ⟨by omega, by omega, h⟩
+    refine ⟨by omega, by omega, sorry⟩
   case step =>
     intro iv rpref a rsuff _
     rcases iv with ⟨⟨i, j⟩, _⟩
@@ -282,14 +296,27 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   have : l.length = i - lo := by sorry
   have : rt.length = (hi + 1) - (i + 1) := by sorry
   -- have : M.length = hi + 1 - lo := by omega
-  have hrt' : ∀ (b : α), b ∈ rt ↔ ∃ (x : Fin n), i < x ∧ x ≤ hi ∧ s.xs.get x = b := sorry
+  have hrt' : ∀ (b : α), b ∈ rt ↔ ∃ (x : Fin n), i < x ∧ x ≤ hi ∧ xs'.get x = b := sorry
   mpure_intro
   simp
   -- rw [h]
   -- rw [h] at hr
-  refine ⟨l, by omega, rt, r.1[i]'(by have := r.2; sorry /- FIXME omega here breaks pattern-matching -/ ), sorry, ?_, ?_, sorry⟩
-  .
-    rw [hr]
+  refine ⟨l, by omega, rt, r.1[i]'(by have := r.2; sorry /- FIXME omega here breaks pattern-matching -/ ), ?_, ?_, ?_⟩
+  . rcases hM with ⟨M', hM'⟩
+    rw [← List.append_assoc] at hM'
+    have := swap_array_decomp hM' i hi sorry sorry sorry sorry
+    unfold Vector.toList
+    dsimp
+    rw [this]
+    simp only [List.append_assoc, List.append_cancel_left_eq]
+    rw [← List.cons_append, ← List.append_assoc]
+    simp only [List.append_right_inj, List.append_left_inj, List.cons_inj_right]
+    have := subarray_decomp this
+    rw [← this]
+    simp
+    have : M'.length = M.length := by sorry -- TODO
+    sorry -- TODO
+  . rw [hr]
     have hl' : ∀ (b : α), b ∈ l ↔ ∃ (x : Fin n), lo ≤ x ∧ x < i ∧ r.get x = b := sorry
     rw [hr] at hl'
     intro b
@@ -303,11 +330,10 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   intro b
   rw [hrt']
   rintro ⟨x, ⟨h1, h2, rfl⟩⟩
-  unfold r
+  unfold r xs'
+  rw [Array.getElem_swap_left]
   if h : x = hi then
     simp [Vector.get]
-    intros
-    unfold xs'
     rw [h, Array.getElem_swap_right]
     exact (hrt ⟨i, by omega⟩ (by simp) (by simp; omega))
   else
@@ -318,33 +344,39 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     exact (hrt ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
 
 -- #eval #[1, 2, 3, 4][1:3].toArray
-theorem perm_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
+theorem qsort_rec_perm (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
     (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : M.length > 0 → lo + M.length = hi + 1)
     :
    ⦃⌜(#xs).toList = L ++ M ++ R⌝⦄
-   qsort' lt lo hi
+   qsort_rec lt lo hi
    ⦃⇓ _ => ⌜∃ M', (#xs).1.toList = L ++ M' ++ R ∧ M'.Perm M⌝⦄ := by
   sorry
 
-theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
+theorem qsort_rec_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
     (lo : Nat) (hi : Fin n) (L M R) (hlo : L.length = lo) (hhi : M.length > 0 → lo + M.length = hi + 1)
     :
    ⦃⌜(#xs).toList = L ++ M ++ R⌝⦄
-   qsort' lt lo hi
+   qsort_rec lt lo hi
    ⦃⇓ _ => ⌜∃ M', (#xs).1.toList = L ++ M' ++ R ∧ M'.Pairwise (fun a b => ¬lt b a)⌝⦄ := by
   if hM : M.length > 0 then
-    unfold qsort'
+    unfold qsort_rec
     mintro h
     split
     -- TODO fix bug of state not changing/no errmsg when changing angle brackets to parens
     -- let this := (qpartition_triple le_asymm le_trans ⟨lo, sorry⟩ hi _ hlo (hhi hM))
-    . mspec (qpartition_triple le_asymm le_trans ⟨lo, _⟩ hi _ hlo (hhi hM))
+    -- FIXME why need to specify R?
+    . mspec (multiEntails (FPre := ⌜(#xs).toList = L ++ M ++ R⌝) (qpartition_sorted (R := R) le_asymm le_trans ⟨lo, _⟩ hi _ hlo (hhi hM)) (qpartition_perm (R := R) le_asymm le_trans ⟨lo, _⟩ hi _ hlo (hhi hM)) sorry sorry)
       mintro ∀s
       mpure h
       simp at h
       rcases r with ⟨pivot, p⟩
       simp at p
-      rcases h with ⟨l, hM', rt, a, _, hl, hrt, hperm⟩
+      rcases h with ⟨⟨l, hM', rt, a, hdec, hl, hrt⟩, ⟨_, hdec', hperm⟩⟩
+      have := hdec.symm.trans hdec'
+      simp only [List.append_right_inj, List.append_left_inj, List.cons_inj_right] at this
+      rw [← List.cons_append, ← List.append_assoc] at this
+      simp only [List.append_right_inj, List.append_left_inj, List.cons_inj_right] at this
+      subst this
       have := hperm.length_eq
       simp at this
       simp at hM'
@@ -352,10 +384,10 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
       next as' mid hmlo hmhi heq =>
       rcases heq
 
-      have hs1 := (sorted_triple' le_asymm le_trans lo ⟨pivot - 1, sorry⟩ L l (a::rt ++ R) (by assumption) (by
+      have hs1 := (qsort_rec_sorted le_asymm le_trans lo ⟨pivot - 1, sorry⟩ L l (a::rt ++ R) (by assumption) (by
          simp
          omega))
-      have hp1 := (perm_triple' (n := n) le_asymm le_trans lo ⟨pivot - 1, sorry⟩ L l (a::rt ++ R) (by assumption) (by
+      have hp1 := (qsort_rec_perm (n := n) le_asymm le_trans lo ⟨pivot - 1, sorry⟩ L l (a::rt ++ R) (by assumption) (by
          simp
          omega))
       -- have := (multiEntails hs1 hp1 sorry sorry)
@@ -370,8 +402,8 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
       simp only [List.append_right_inj, List.append_left_inj] at this
       subst this
 
-      have hs2 := (sorted_triple' le_asymm le_trans (pivot + 1) hi (L ++ l' ++ [a]) rt R sorry (by simp; omega))
-      have hp2 := (perm_triple' le_asymm le_trans (pivot + 1) hi (L ++ l' ++ [a]) rt R sorry (by simp; omega))
+      have hs2 := (qsort_rec_sorted le_asymm le_trans (pivot + 1) hi (L ++ l' ++ [a]) rt R sorry (by simp; omega))
+      have hp2 := (qsort_rec_perm le_asymm le_trans (pivot + 1) hi (L ++ l' ++ [a]) rt R sorry (by simp; omega))
       mspec (multiEntails (FPre := ⌜(#xs).toList = L ++ l' ++ (a :: rt ++ R)⌝) hs2 hp2 sorry sorry)
       case intro.intro.intro.intro.intro.pre1 =>
         simpa
@@ -423,7 +455,7 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
     sorry
 termination_by hi - lo
 
-theorem sorted_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) (xs : Array α) :
+theorem qsort_spec (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) (xs : Array α) :
    ⦃⌜True⌝⦄
    qsort xs lt
    ⦃⇓ xs' => xs'.toList.Pairwise (fun a b => ¬lt b a) ∧ xs'.Perm xs⦄
@@ -434,12 +466,12 @@ theorem sorted_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : 
     mintro -
     -- FIXME why can't I inline the proof as an argument to mspec, with holes for the args corresponding to those of the call to qsort'? Is the pattern matching that it does not powerful enough?
     have hs :=
-     (sorted_triple' le_asymm le_trans 0 ⟨xs.size - 1, by omega⟩ [] xs.toList [] rfl (by simp; omega) ) ⟨xs, rfl⟩ (by simp; rfl)
+     (qsort_rec_sorted le_asymm le_trans 0 ⟨xs.size - 1, by omega⟩ [] xs.toList [] rfl (by simp; omega) ) ⟨xs, rfl⟩ (by simp; rfl)
     have hp :=
-     (perm_triple' le_asymm le_trans 0 ⟨xs.size - 1, by omega⟩ [] xs.toList [] rfl (by simp; omega) ) ⟨xs, rfl⟩ (by simp; rfl)
+     (qsort_rec_perm le_asymm le_trans 0 ⟨xs.size - 1, by omega⟩ [] xs.toList [] rfl (by simp; omega) ) ⟨xs, rfl⟩ (by simp; rfl)
     simp at hs
     simp at hp
-    generalize h : (StateT.run (qsort' lt 0 ⟨xs.size - 1, _⟩) { xs := ⟨xs, _⟩ }) = x
+    generalize h : (StateT.run (qsort_rec lt 0 ⟨xs.size - 1, _⟩) { xs := ⟨xs, _⟩ }) = x
     have hs := StateM.by_wp h (fun (_, s) => List.Pairwise (fun a b => lt b a = false) s.xs.val.toList) hs
     have hp := StateM.by_wp h (fun (_, s) => s.xs.val.toList.Perm xs.toList) hp
     simp at hs
@@ -458,4 +490,4 @@ theorem sorted_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : 
 
 theorem sorted (xs : Array α) {lt : α → α → Bool} (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c) :
     (qsort xs lt).run.toList.Pairwise (fun a b => ¬lt b a) ∧ (qsort xs lt).run.Perm xs := by
-  exact sorted_triple le_asymm le_trans (α := α) xs True.intro
+  exact qsort_spec le_asymm le_trans (α := α) xs True.intro
