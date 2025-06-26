@@ -170,7 +170,7 @@ theorem swap_array_decomp {X : Array α} {A B C : List α} (hX : X.toList = A ++
 
 theorem subarray_decomp {X : Array α} {A B C : List α} (hX : X.toList = A ++ B ++ C) : X[A.length:A.length + B.length].toArray.toList = B := sorry
 
--- set_option pp.proofs true in
+-- set_option trace.mpl.tactics.vcgen true in
 theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
     (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi) {L M R}
     (hlo : L.length = lo.1) (hhi : lo.1 + M.length = hi + 1)
@@ -183,175 +183,32 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   mintro h
   -- FIXME could we have an `mspec?` tactic that repeatedly unfolds the `wp` arg until a matching spec is found?
   unfold qpartition
-  -- FIXME why do I need parens around this?
-  mspec (qpartition_prep_perm)
-  -- mspec (xs_triple (P := ⌜∃ M', (#xs).toList = L ++ M' ++ R ∧ M'.Perm M⌝))
-  mspec
-  mspec
+  mvcgen
   case inv => exact PostCond.total fun (⟨⟨i, j⟩, _⟩, sp) =>
-    ⌜ j = lo + sp.rpref.length ∧
+    ⌜j = lo + sp.rpref.length ∧
     ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt ((#xs).get hi) ((#xs).get n))) ∧
     ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt ((#xs).get n) ((#xs).get hi))) ∧
     ∃ M', (#xs).val.toList = L ++ M' ++ R ∧ M'.length == M.length⌝
-  case pre1 =>
-    simp at h
-    -- rcases h with ⟨M, h, h'⟩
-    simp
-    refine ⟨by omega, by omega, sorry⟩
-  case step =>
-    intro iv rpref a rsuff _
-    rcases iv with ⟨⟨i, j⟩, _⟩
-    mintro h
-    simp only
-    -- mpure h
-    -- simp at h
-    -- rcases h with ⟨hj, hl, hr, hM⟩
-    simp
-    mintro ∀s
-    mpure h
-    simp at h
-    rcases h with ⟨hj, hl, hr, hM⟩
-    split
-    next heq =>
-    rcases heq
-    split
-    mspec
-    split
-    . next hhihj =>
-      mspec
-      mpure_intro
-      refine ⟨by omega, fun x => ?_, fun x => ?_, ?_⟩
-      if h' : x = i then
-        subst h'
-        simp at le_asymm
-        simp
-        refine fun _ => le_asymm ?_
-        simp only [Vector.get, Fin.getElem_fin]
-        rw [Array.getElem_swap_left, Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
-        exact hhihj
-      else
-        intros
-        rw [Vector.get, Fin.getElem_fin]
-        simp [Vector.get]
-        rw [Array.getElem_swap_of_ne, Array.getElem_swap_of_ne]
-        apply hl _
-        all_goals omega
-      if h' : x = j then
-        simp -- FIXME
-        subst h'
-        intros
-        simp [Vector.get, Fin.getElem_fin]
-        rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
-        apply hr ⟨i, by omega⟩
-        simp only [Nat.le_refl]
-        simp only
-        omega
-      else
-        intros
-        simp [Vector.get]
-        rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
-        rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
-        apply hr _ (by omega) (by omega)
-      simp only [SVal.uncurry_cons, SVal.curry_nil, SVal.uncurry_nil]
-      rcases hM with ⟨M', hM', hM'l⟩
-      rw [← List.append_assoc] at hM'
-      rw [swap_array_decomp hM' _ _ (by omega) (by omega) (by omega) (by omega)]
-      refine ⟨( M'.toArray.swap (i - L.length) (j - L.length) sorry sorry).toList, ?_⟩
-      simpa only [List.swap_toArray, List.append_assoc, List.length_set, true_and]
-    . next hhihj =>
-      mpure_intro
-      simp
-      refine ⟨by omega, fun x => ?_, fun x => ?_, ?_⟩
-      apply hl _ 
-      if h' : x = j then
-        subst h'
-        intros
-        simp [Vector.get, Fin.getElem_fin]
-        simp at hhihj
-        exact hhihj
-      else
-        intros
-        apply hr _ (by omega) (by omega)
-      exact hM
-    -- have : j < hi := by omega
-    have : (rpref.reverse ++ a :: rsuff).length = hi - lo := by sorry
-    simp at this
-    have : rpref.length + lo < hi := by omega
-    subst hj
-    rw [Nat.add_comm] at this
-    contradiction
-  rcases r with ⟨⟨i, j⟩, hij⟩
-  mintro ∀s
-  mpure h
-  simp at h
-  rcases h with ⟨hj, hl, hrt, hM⟩
-  have hj : j = hi := by omega
-  rcases hj
-  split
-  next hihi _ heq =>
-  rcases heq
-  -- let r := xs'.val.swap i hi _ _
-  mspec
-  -- FIXME how to avoid?
-  let xs' : Vector α n := ⟨s.xs.val.swap i (↑hi) sorry
-          sorry,
-        sorry⟩
-  -- let xs' : Vector α n := ⟨s.xs.val.swap i (↑hi) (qpartition._proof_21 lo hi hle ⟨(i, ↑hi), hij⟩ i (↑hi) hihi s.xs)
-  --         (qpartition._proof_22 lo hi hle ⟨(i, ↑hi), hij⟩ i (↑hi) s.xs),
-  --       qpartition._proof_23 lo hi hle ⟨(i, ↑hi), hij⟩ i (↑hi) hihi s.xs⟩
-  let s' : ST α n := { s with xs := xs' }
-  let r := xs'
-  have hr : r = xs' := rfl
-  let l := xs'.1[lo:i].toArray.toList
-  let rt := xs'.1[i + 1:hi + 1].toArray.toList
-  have : l.length = i - lo := by sorry
-  have : rt.length = (hi + 1) - (i + 1) := by sorry
-  -- have : M.length = hi + 1 - lo := by omega
-  have hrt' : ∀ (b : α), b ∈ rt ↔ ∃ (x : Fin n), i < x ∧ x ≤ hi ∧ xs'.get x = b := sorry
-  mpure_intro
-  simp
-  -- rw [h]
-  -- rw [h] at hr
-  refine ⟨l, by omega, rt, r.1[i]'(by have := r.2; sorry /- FIXME omega here breaks pattern-matching -/ ), ?_, ?_, ?_⟩
-  . rcases hM with ⟨M', hM', hM'l⟩
-    rw [← List.append_assoc] at hM'
-    have := swap_array_decomp hM' i hi sorry sorry sorry sorry
-    unfold Vector.toList
-    dsimp
-    rw [this]
-    simp only [List.append_assoc, List.append_cancel_left_eq]
-    rw [← List.cons_append, ← List.append_assoc]
-    simp only [List.append_right_inj, List.append_left_inj, List.cons_inj_right]
-    have := subarray_decomp this
-    rw [← this]
-    simp
-    sorry
-  . rw [hr]
-    have hl' : ∀ (b : α), b ∈ l ↔ ∃ (x : Fin n), lo ≤ x ∧ x < i ∧ r.get x = b := sorry
-    rw [hr] at hl'
-    intro b
-    rw [hl']
-    rintro ⟨x, ⟨h1, h2, rfl⟩⟩
-    rw [Array.getElem_swap_left]
-    intros
-    simp [Vector.get]
-    rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
-    exact (hl ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
-  intro b
-  rw [hrt']
-  rintro ⟨x, ⟨h1, h2, rfl⟩⟩
-  unfold r xs'
-  rw [Array.getElem_swap_left]
-  if h : x = hi then
-    simp [Vector.get]
-    rw [h, Array.getElem_swap_right]
-    exact (hrt ⟨i, by omega⟩ (by simp) (by simp; omega))
-  else
-    simp [Vector.get]
-    intros
-    -- have hr : r.val[(x : Nat)] = xs'.val[(x : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
-    rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
-    exact (hrt ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
+  sorry
+  sorry
+  sorry
+  sorry
+  sorry
+  -- case ifFalse =>
+  -- . simp
+  --   simp at h
+  --   sorry
+  -- simp at h
+  -- -- rcases h with ⟨M, h, h'⟩
+  -- unfold inv
+  -- simp
+  -- refine ⟨by omega, by omega, sorry⟩
+  -- simp at h
+  -- simp
+  -- sorry
+  -- simp at h
+  -- sorry
+  -- sorry
 
 -- #eval #[1, 2, 3, 4][1:3].toArray
 theorem qsort_rec_perm (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
