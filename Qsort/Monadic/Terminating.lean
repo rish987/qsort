@@ -176,7 +176,7 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     intro iv rpref a rsuff _
     rcases iv with ⟨⟨⟨i, j⟩, _⟩, xs'⟩
     mintro h
-    mpure h
+    mframe
     simp at h
     rcases h with ⟨hj, hl, hr, hM⟩
     split

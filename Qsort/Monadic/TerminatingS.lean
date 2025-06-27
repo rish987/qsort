@@ -203,6 +203,9 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     rcases iv with ⟨⟨i, j⟩, _⟩
     mintro h
     simp only
+    split
+    next heq =>
+    rcases heq
     -- mpure h
     -- simp at h
     -- rcases h with ⟨hj, hl, hr, hM⟩
@@ -212,14 +215,12 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     simp at h
     rcases h with ⟨hj, hl, hr, hM⟩
     split
-    next heq =>
-    rcases heq
-    split
     mspec
     split
     . next hhihj =>
       mspec
       mpure_intro
+      simp [-Array.toList_swap]
       refine ⟨by omega, fun x => ?_, fun x => ?_, ?_⟩
       if h' : x = i then
         subst h'
@@ -237,7 +238,6 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
         apply hl _
         all_goals omega
       if h' : x = j then
-        simp -- FIXME
         subst h'
         intros
         simp [Vector.get, Fin.getElem_fin]
@@ -252,7 +252,6 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
         rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
         rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
         apply hr _ (by omega) (by omega)
-      simp only [SVal.uncurry_cons, SVal.curry_nil, SVal.uncurry_nil]
       rcases hM with ⟨M', hM', hM'l⟩
       rw [← List.append_assoc] at hM'
       rw [swap_array_decomp hM' _ _ (by omega) (by omega) (by omega) (by omega)]
@@ -280,18 +279,19 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     subst hj
     rw [Nat.add_comm] at this
     contradiction
-  rcases r with ⟨⟨i, j⟩, hij⟩
+  rcases r with ⟨⟨i, j⟩, _⟩
+  split
+  mspec
+  simp
   mintro ∀s
   mpure h
   simp at h
   rcases h with ⟨hj, hl, hrt, hM⟩
   have hj : j = hi := by omega
   rcases hj
-  split
+  -- let r := xs'.val.swap i hi _ _
   next hihi _ heq =>
   rcases heq
-  -- let r := xs'.val.swap i hi _ _
-  mspec
   -- FIXME how to avoid?
   let xs' : Vector α n := ⟨s.xs.val.swap i (↑hi) sorry
           sorry,
@@ -308,10 +308,9 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   have : rt.length = (hi + 1) - (i + 1) := by sorry
   -- have : M.length = hi + 1 - lo := by omega
   have hrt' : ∀ (b : α), b ∈ rt ↔ ∃ (x : Fin n), i < x ∧ x ≤ hi ∧ xs'.get x = b := sorry
-  mpure_intro
-  simp
   -- rw [h]
   -- rw [h] at hr
+  simp
   refine ⟨l, by omega, rt, r.1[i]'(by have := r.2; sorry /- FIXME omega here breaks pattern-matching -/ ), ?_, ?_, ?_⟩
   . rcases hM with ⟨M', hM', hM'l⟩
     rw [← List.append_assoc] at hM'

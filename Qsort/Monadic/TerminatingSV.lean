@@ -170,7 +170,7 @@ theorem swap_array_decomp {X : Array α} {A B C : List α} (hX : X.toList = A ++
 
 theorem subarray_decomp {X : Array α} {A B C : List α} (hX : X.toList = A ++ B ++ C) : X[A.length:A.length + B.length].toArray.toList = B := sorry
 
--- set_option trace.mpl.tactics.vcgen true in
+-- set_option pp.proofs true in
 theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
     (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi) {L M R}
     (hlo : L.length = lo.1) (hhi : lo.1 + M.length = hi + 1)
@@ -184,31 +184,103 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   -- FIXME could we have an `mspec?` tactic that repeatedly unfolds the `wp` arg until a matching spec is found?
   unfold qpartition
   mvcgen
+
   case inv => exact PostCond.total fun (⟨⟨i, j⟩, _⟩, sp) =>
-    ⌜j = lo + sp.rpref.length ∧
+    ⌜ j = lo + sp.rpref.length ∧
     ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt ((#xs).get hi) ((#xs).get n))) ∧
     ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt ((#xs).get n) ((#xs).get hi))) ∧
     ∃ M', (#xs).val.toList = L ++ M' ++ R ∧ M'.length == M.length⌝
+
+  case ifFalse =>
+    . have : (rpref.reverse ++ x :: suff).length = hi - lo := by sorry
+      simp at this
+      have : rpref.length + lo < hi := by omega
+      simp
+      mintro ∀_
+      mframe
+      rcases h with ⟨hj, hl, hr, hM⟩
+      subst hj
+      rw [Nat.add_comm] at this
+      contradiction
+
+  . simp at h
+    unfold inv
+    simp
+    refine ⟨by omega, by omega, sorry⟩
+
+  . simp at h
+    simp
+    next i j _ _ _ s => 
+    rcases h with ⟨hj, hl, hrt, hM⟩
+    have hj : j = hi := by omega
+    rcases hj
+    -- let r := xs'.val.swap i hi _ _
+    next hihi =>
+    -- FIXME how to avoid?
+    let xs' : Vector α n := ⟨s.xs.val.swap i (↑hi) sorry
+            sorry,
+          sorry⟩
+    -- let xs' : Vector α n := ⟨s.xs.val.swap i (↑hi) (qpartition._proof_21 lo hi hle ⟨(i, ↑hi), hij⟩ i (↑hi) hihi s.xs)
+    --         (qpartition._proof_22 lo hi hle ⟨(i, ↑hi), hij⟩ i (↑hi) s.xs),
+    --       qpartition._proof_23 lo hi hle ⟨(i, ↑hi), hij⟩ i (↑hi) hihi s.xs⟩
+    let s' : ST α n := { s with xs := xs' }
+    let r := xs'
+    have hr : r = xs' := rfl
+    let l := xs'.1[lo:i].toArray.toList
+    let rt := xs'.1[i + 1:hi + 1].toArray.toList
+    have : l.length = i - lo := by sorry
+    have : rt.length = (hi + 1) - (i + 1) := by sorry
+    -- have : M.length = hi + 1 - lo := by omega
+    have hrt' : ∀ (b : α), b ∈ rt ↔ ∃ (x : Fin n), i < x ∧ x ≤ hi ∧ xs'.get x = b := sorry
+    -- rw [h]
+    -- rw [h] at hr
+    refine ⟨l, by omega, rt, r.1[i]'(by have := r.2; sorry /- FIXME omega here breaks pattern-matching -/ ), ?_, ?_, ?_⟩
+    . rcases hM with ⟨M', hM', hM'l⟩
+      rw [← List.append_assoc] at hM'
+      have := swap_array_decomp hM' i hi sorry sorry sorry sorry
+      unfold Vector.toList
+      dsimp
+      rw [this]
+      simp only [List.append_assoc, List.append_cancel_left_eq]
+      rw [← List.cons_append, ← List.append_assoc]
+      simp only [List.append_right_inj, List.append_left_inj, List.cons_inj_right]
+      have := subarray_decomp this
+      rw [← this]
+      simp
+      sorry
+    . rw [hr]
+      have hl' : ∀ (b : α), b ∈ l ↔ ∃ (x : Fin n), lo ≤ x ∧ x < i ∧ r.get x = b := sorry
+      rw [hr] at hl'
+      intro b
+      rw [hl']
+      rintro ⟨x, ⟨h1, h2, rfl⟩⟩
+      rw [Array.getElem_swap_left]
+      intros
+      simp [Vector.get]
+      rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
+      exact (hl ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
+    intro b
+    rw [hrt']
+    rintro ⟨x, ⟨h1, h2, rfl⟩⟩
+    unfold r xs'
+    rw [Array.getElem_swap_left]
+    if h : x = hi then
+      simp [Vector.get]
+      rw [h, Array.getElem_swap_right]
+      exact (hrt ⟨i, by omega⟩ (by simp) (by simp; omega))
+    else
+      simp [Vector.get]
+      intros
+      -- have hr : r.val[(x : Nat)] = xs'.val[(x : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
+      rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
+      exact (hrt ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
+
+  . simp at h
+    rcases h with ⟨hj, hl, hrt, hM⟩
+    simp [-Array.toList_swap]
+    next i j _ _ _ s _ _ =>
+    . sorry
   sorry
-  sorry
-  sorry
-  sorry
-  sorry
-  -- case ifFalse =>
-  -- . simp
-  --   simp at h
-  --   sorry
-  -- simp at h
-  -- -- rcases h with ⟨M, h, h'⟩
-  -- unfold inv
-  -- simp
-  -- refine ⟨by omega, by omega, sorry⟩
-  -- simp at h
-  -- simp
-  -- sorry
-  -- simp at h
-  -- sorry
-  -- sorry
 
 -- #eval #[1, 2, 3, 4][1:3].toArray
 theorem qsort_rec_perm (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
