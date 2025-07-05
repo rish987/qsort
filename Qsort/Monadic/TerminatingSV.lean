@@ -61,6 +61,8 @@ def qpartition_maybeSwap (lt : α → α → Bool) (lo hi : Fin n) : StateM (ST 
   if lt ((← get).xs.get hi) ((← get).xs.get lo) then
     mxs fun xs => ⟨xs.1.swap lo hi, (Array.size_swap ..).trans xs.2⟩
 
+def _root_.Array.swap' {α : Type u} (xs : Array α) (i j : Nat) := Array.swap xs i j (hi := sorry) (hj := sorry)
+
 def qpartition_prep
     (lt : α → α → Bool) (lo hi : Fin n) :
     StateM (ST α n) Unit := do
@@ -73,40 +75,38 @@ def qpartition_prep
 /-- Partitions `xs[lo..=hi]`, returning a pivot point and the new array. -/
 @[inline] def qpartition
     (lt : α → α → Bool) (lo hi : Fin n) (hle : lo ≤ hi) :
-    StateM (ST α n) $ {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
+    StateM (ST α n) $ Nat := do
   qpartition_prep lt lo hi
   let pivot := (← get).xs.get hi
   -- we must keep track of i and j and their respective properties all together within a single subtype,
   -- because these dependent properties must be shown in parallel to reassigning the indices
-  let mut inv : {t : Nat × Nat // lo ≤ t.1 ∧ t.1 ≤ hi ∧ t.1 ≤ t.2} := ⟨(lo, lo), by omega, by omega⟩
+  let mut i : Nat := lo
+  let mut j : Nat := lo
   for _ in [lo:hi] do
-    let mut ⟨(i, j), hloi, hihi, hij⟩ := inv
     -- NOTE: `j < hi` is actually always the case. It would be easy to show if we could somehow bind `j`
     -- and the invariant properties in the `for` loop syntax rather than bundling it into `inv`, however this is not possible at the moment.
     -- Therefore, showing it is deferred to the correctness proof for now.
-    if hjhi : j < hi then
-      have _ : i < hi := Nat.lt_of_le_of_lt hij hjhi
-      let xs := (← get).xs -- FIXME
-      if lt (xs.get ⟨j, by omega⟩) (xs.get ⟨hi, by omega⟩) then
-        mxs fun xs => ⟨(xs).1.swap i j, (Array.size_swap ..).trans xs.2⟩
-        i := i + 1
-        j := j + 1
-        inv := ⟨(i, j), Nat.le_succ_of_le hloi, by omega, by omega⟩
-      else
-        j := j + 1
-        inv := ⟨(i, j), hloi, by omega, by omega⟩
-  let ⟨(i, _), hloi, hihi, _⟩ := inv
-  mxs fun xs => ⟨xs.1.swap i hi, (Array.size_swap ..).trans xs.2⟩
-  pure ⟨i, hloi, hihi⟩
+    let xs := (← get).xs -- FIXME
+    if lt (xs.get ⟨j, by sorry⟩) (xs.get ⟨hi, by sorry⟩) then
+      mxs fun xs => ⟨(xs).1.swap' i j, (Array.size_swap ..).trans xs.2⟩
+      i := i + 1
+      j := j + 1
+    else
+      j := j + 1
+  mxs fun xs => ⟨xs.1.swap' i hi, (Array.size_swap ..).trans xs.2⟩
+  pure i
 
 def qsort_rec {n} (lt : α → α → Bool)
     (lo : Nat) (hi : Fin n) : StateM (ST α n) Unit := do
   if h : lo < hi.1 then
-    let ⟨mid, (_ : lo ≤ mid), _⟩ ←
+    let mid ←
       qpartition lt ⟨lo, Nat.lt_trans h hi.2⟩ hi (Nat.le_of_lt h)
-    qsort_rec lt lo ⟨mid - 1, by omega⟩
+    qsort_rec lt lo ⟨mid - 1, by sorry⟩
     qsort_rec lt (mid + 1) hi
 termination_by hi - lo
+decreasing_by
+sorry
+sorry
 
 /-- Sort the array `xs[low..=high]` using comparator `lt`. -/
 @[inline] def qsort (xs : Array α) (lt : α → α → Bool) :
@@ -200,7 +200,7 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   mvcgen
 
   case inv =>
-    exact PostCond.total fun (⟨⟨i, j⟩, _⟩, sp) =>
+    exact PostCond.total fun (⟨i, j⟩, sp) =>
       SPred.and -- FIXME want to use ∧ notation instead
       ⌜ j = lo + sp.rpref.length ⌝ -- FIXME can we individually label these with names for use with `mcases`?
       (SPred.and
@@ -209,28 +209,28 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
       ⌜ ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt ((#xs).get n) ((#xs).get hi)))⌝
       ⌜ ∃ M', (#xs).val.toList = L ++ M' ++ R ∧ M'.length = M.length⌝))
 
-  case ifFalse =>
-    . -- FIXME automate
-      simp only
-      mstop -- FIXME why is this necessary to rename the hypothesis?
-      mintro h
-      mcases h with ⟨rfl, _, _, _⟩
-      subst rfl -- FIXME why `rfl` above didn't wor as it would in `rcases`?
-
-      -- FIXME automate
-      mintro ∀s
-      simp only [SVal.curry_cons, SVal.uncurry_cons, SVal.curry_nil, SVal.uncurry_nil]
-      mframe -- FIXME why didn't this preserve hypothesis names?
-      mpure_intro
-      simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, FailConds.pure_def, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil]
-
-      -- FIXME both of these properties should be provided by Spec.forIn_range?
-      have : (rpref.reverse ++ x :: suff).length = hi - lo := by sorry
-      simp only [List.length_append, List.length_reverse, List.length_cons] at this
-      have : lo + rpref.length < hi := by omega
-
-      -- rcases h with ⟨rfl, -, -, -⟩
-      contradiction
+  -- case ifFalse =>
+  --   . -- FIXME automate
+  --     simp only
+  --     mstop -- FIXME why is this necessary to rename the hypothesis?
+  --     mintro h
+  --     mcases h with ⟨rfl, _, _, _⟩
+  --     subst rfl -- FIXME why `rfl` above didn't work as it would in `rcases`?
+  --
+  --     -- FIXME automate
+  --     mintro ∀s
+  --     simp only [SVal.curry_cons, SVal.uncurry_cons, SVal.curry_nil, SVal.uncurry_nil]
+  --     mframe -- FIXME why didn't this preserve hypothesis names?
+  --     mpure_intro
+  --     simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, FailConds.pure_def, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil]
+  --
+  --     -- FIXME both of these properties should be provided by Spec.forIn_range?
+  --     have : (rpref.reverse ++ x :: suff).length = hi - lo := by sorry
+  --     simp only [List.length_append, List.length_reverse, List.length_cons] at this
+  --     have : lo + rpref.length < hi := by omega
+  --
+  --     -- rcases h with ⟨rfl, -, -, -⟩
+  --     contradiction
 
   . -- FIXME automate
     simp only
