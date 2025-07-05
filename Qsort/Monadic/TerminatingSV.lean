@@ -139,6 +139,20 @@ theorem qpartition_maybeSwap_perm
      M'.Perm M⌝⦄ := by
   sorry
 
+-- open Lean Elab Tactic Meta in
+-- elab "decompose_all" : tactic => do
+--   let lctx := (← (← getMainGoal).getDecl).lctx
+--   for ldecl in lctx do
+--     if ldecl.isImplementationDetail then continue
+--     try
+--       trace[Meta] s!"DBG[24]: TerminatingSV.lean:147 {ldecl.userName}"
+--       trace[Meta] s!"DBG[24]: TerminatingSV.lean:147 {ldecl.fvarId.name}"
+--       trace[Meta] s!"DBG[24]: TerminatingSV.lean:147 {ldecl.type}"
+--       evalTactic (← `(tactic| cases $(.mk (mkIdent ldecl.userName)))) 
+--     catch e =>
+--       trace[Meta] s!"DBG[24]: TerminatingSV.lean:147 {← e.toMessageData.toString}"
+--       pure ()
+
 @[spec]
 theorem qpartition_prep_perm
     {lo : Fin n} {hi : Fin n} (hle : lo ≤ hi := by omega) {L M R}
@@ -171,6 +185,7 @@ theorem swap_array_decomp {X : Array α} {A B C : List α} (hX : X.toList = A ++
 theorem subarray_decomp {X : Array α} {A B C : List α} (hX : X.toList = A ++ B ++ C) : X[A.length:A.length + B.length].toArray.toList = B := sorry
 
 -- set_option pp.proofs true in
+set_option trace.Meta true in
 theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
     (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi) {L M R}
     (hlo : L.length = lo.1) (hhi : lo.1 + M.length = hi + 1)
@@ -184,55 +199,77 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   unfold qpartition
   mvcgen
 
-  case inv => exact PostCond.total fun (⟨⟨i, j⟩, _⟩, sp) =>
-    ⌜ j = lo + sp.rpref.length ∧
-    ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt ((#xs).get hi) ((#xs).get n))) ∧
-    ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt ((#xs).get n) ((#xs).get hi))) ∧
-    ∃ M', (#xs).val.toList = L ++ M' ++ R ∧ M'.length == M.length⌝
+  case inv =>
+    exact PostCond.total fun (⟨⟨i, j⟩, _⟩, sp) =>
+      SPred.and -- FIXME want to use ∧ notation instead
+      ⌜ j = lo + sp.rpref.length ⌝ -- FIXME can we individually label these with names for use with `mcases`?
+      (SPred.and
+        ⌜ ((∀ (n : Fin n), lo ≤ n ∧ n < i → ¬ lt ((#xs).get hi) ((#xs).get n)))⌝
+      (SPred.and
+      ⌜ ((∀ (n : Fin n), i ≤ n ∧ n < j → ¬ lt ((#xs).get n) ((#xs).get hi)))⌝
+      ⌜ ∃ M', (#xs).val.toList = L ++ M' ++ R ∧ M'.length = M.length⌝))
 
   case ifFalse =>
     . -- FIXME automate
       simp only
-      mintro ∀_
+      mstop -- FIXME why is this necessary to rename the hypothesis?
+      mintro h
+      mcases h with ⟨rfl, _, _, _⟩
+      subst rfl -- FIXME why `rfl` above didn't wor as it would in `rcases`?
+
+      -- FIXME automate
+      mintro ∀s
       simp only [SVal.curry_cons, SVal.uncurry_cons, SVal.curry_nil, SVal.uncurry_nil]
-      mframe
+      mframe -- FIXME why didn't this preserve hypothesis names?
       mpure_intro
+      simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, FailConds.pure_def, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil]
 
       -- FIXME both of these properties should be provided by Spec.forIn_range?
       have : (rpref.reverse ++ x :: suff).length = hi - lo := by sorry
       simp only [List.length_append, List.length_reverse, List.length_cons] at this
       have : lo + rpref.length < hi := by omega
 
-      -- FIXME h.1 should be somehow marked as an equality to automatically call `subst` on
-      have := h.1
-      subst this
       -- rcases h with ⟨rfl, -, -, -⟩
       contradiction
 
   . -- FIXME automate
     simp only
     mpure_intro
-    simp only [SVal.curry_cons, SVal.uncurry_cons, SVal.curry_nil, SVal.uncurry_nil]
-    simp only [SVal.curry_cons, SVal.uncurry_cons, SVal.curry_nil, SVal.uncurry_nil] at h
+    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, FailConds.pure_def, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil]
+    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, FailConds.pure_def, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h
 
     -- FIXME automate
-    unfold inv
-    simp only
+    simp only [inv]
     dsimp
 
-    refine ⟨by omega, by omega, by omega, sorry⟩
+    -- FIXME automate this with custom tactic?
+    rcases h with ⟨_, h⟩
+    rcases h with ⟨_, _⟩
+
+    split_ands
+    all_goals try omega
+    constructor
+    split_ands
+    assumption
+    apply List.Perm.length_eq
+    assumption
   . -- FIXME automate
     mpure_intro
-    simp only [SVal.curry_cons, SVal.uncurry_cons, SVal.curry_nil, SVal.uncurry_nil]
-    simp only [SVal.curry_cons, SVal.uncurry_cons, SVal.curry_nil, SVal.uncurry_nil] at h
-    simp? at h
+    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, FailConds.pure_def, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil]
+    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, FailConds.pure_def, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h
+
+    -- FIXME these simplifications are related to the use of `Specs.forin_range`, and should be automatically applied whenever that spec is used
+    simp only [List.length_reverse, List.length_range'] at h
+    simp only [Nat.add_one_sub_one, Nat.div_one] at h
 
     next i j _ _ _ s => 
     rcases h with ⟨hj, hl, hrt, hM⟩
     have hj : j = hi := by omega
-    rcases hj
+    subst hj
+    have {α β : Type} {x : α} {y : β}: Prod.snd (x, y) = y := rfl
     -- let r := xs'.val.swap i hi _ _
     next hihi =>
+    dsimp? at hihi
     -- FIXME how to avoid?
     let xs' : Vector α n := ⟨s.xs.val.swap i (↑hi) sorry
             sorry,
@@ -251,15 +288,14 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     have hrt' : ∀ (b : α), b ∈ rt ↔ ∃ (x : Fin n), i < x ∧ x ≤ hi ∧ xs'.get x = b := sorry
     -- rw [h]
     -- rw [h] at hr
-    refine ⟨l, by omega, rt, r.1[i]'(by have := r.2; sorry /- FIXME omega here breaks pattern-matching -/ ), ?_, ?_, ?_⟩
+    refine ⟨l, rt, r.1[i]'(by have := r.2; sorry /- FIXME omega here breas pattern-matching -/ ), by omega, ?_, ?_, ?_⟩
     . rcases hM with ⟨M', hM', hM'l⟩
-      rw [← List.append_assoc] at hM'
       have := swap_array_decomp hM' i hi sorry sorry sorry sorry
       unfold Vector.toList
       dsimp
       rw [this]
       simp only [List.append_assoc, List.append_cancel_left_eq]
-      rw [← List.cons_append, ← List.append_assoc]
+      rw [← List.append_assoc]
       simp only [List.append_right_inj, List.append_left_inj, List.cons_inj_right]
       have := subarray_decomp this
       rw [← this]
@@ -273,24 +309,24 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
       rintro ⟨x, ⟨h1, h2, rfl⟩⟩
       rw [Array.getElem_swap_left]
       intros
-      simp [Vector.get]
+      simp only [Vector.get, Fin.getElem_fin]
       rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
-      exact (hl ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
+      exact (hl ⟨x, by omega⟩ ⟨(by simp; omega), (by simp; omega)⟩)
     intro b
     rw [hrt']
     rintro ⟨x, ⟨h1, h2, rfl⟩⟩
     unfold r xs'
     rw [Array.getElem_swap_left]
     if h : x = hi then
-      simp [Vector.get]
+      simp only [Vector.get, Fin.getElem_fin]
       rw [h, Array.getElem_swap_right]
-      exact (hrt ⟨i, by omega⟩ (by simp) (by simp; omega))
+      exact (hrt ⟨i, by omega⟩ ⟨(by simp), (by simp; omega)⟩)
     else
-      simp [Vector.get]
+      simp only [Vector.get, Fin.getElem_fin]
       intros
       -- have hr : r.val[(x : Nat)] = xs'.val[(x : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
       rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
-      exact (hrt ⟨x, by omega⟩ (by simp; omega) (by simp; omega))
+      exact (hrt ⟨x, by omega⟩ ⟨(by simp; omega), (by simp; omega)⟩)
 
   . next i j _ _ _ _ s h' hhihj _ _ _ _ =>
     simp at h'
