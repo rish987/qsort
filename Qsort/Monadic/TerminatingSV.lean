@@ -204,7 +204,7 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
       SPred.and -- FIXME want to use ∧ notation instead
       ⌜ j = lo + sp.rpref.length ⌝ -- FIXME can we individually label these with names for use with `mcases`?
       (SPred.and
-        ⌜ ((∀ (x : Nat) (hx : x < n), lo ≤ x ∧ x < i → ¬ lt ((#xs).get hi) ((#xs).get ⟨x, hx⟩)))⌝
+      ⌜ ((∀ (x : Nat) (hx : x < n), lo ≤ x ∧ x < i → ¬ lt ((#xs).get hi) ((#xs).get ⟨x, hx⟩)))⌝
       (SPred.and
       ⌜ ((∀ (x : Nat) (hx : x < n), i ≤ x ∧ x < j → ¬ lt ((#xs).get ⟨x, hx⟩) ((#xs).get hi)))⌝
       ⌜ ∃ M', (#xs).val.toList = L ++ M' ++ R ∧ M'.length = M.length⌝))
@@ -215,7 +215,7 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
       mstop -- FIXME why is this necessary to rename the hypothesis?
       mintro h
       mcases h with ⟨rfl, _, _, _⟩
-      subst rfl -- FIXME why `rfl` above didn't wor as it would in `rcases`?
+      subst rfl -- FIXME why `rfl` above didn't work as it would in `rcases`?
 
       -- FIXME automate
       mintro ∀s
@@ -226,7 +226,7 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
 
       -- FIXME both of these properties should be provided by Spec.forIn_range?
       have : (rpref.reverse ++ x :: suff).length = hi - lo := by sorry
-      simp only [List.length_append, List.length_reverse, List.length_cons] at this
+      rw [List.length_append, List.length_reverse, List.length_cons] at this
       have : lo + rpref.length < hi := by omega
 
       -- rcases h with ⟨rfl, -, -, -⟩
@@ -267,10 +267,6 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     simp only [List.length_reverse, List.length_range'] at h
     simp only [Nat.add_one_sub_one, Nat.div_one] at h
 
-    rcases h with ⟨hj, hl, hrt, hM⟩
-    have hj : j = hi := by omega
-    subst hj
-
     -- FIXME how to avoid?
     let xs' : Vector α n := ⟨s.xs.val.swap i (↑hi) sorry
             sorry,
@@ -280,17 +276,39 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
 
     have : l.length = i - lo := by sorry
 
-    refine ⟨l, rt, xs'.1[i]'(by omega), by omega, ?_, ?_, ?_⟩
+    exists l, rt, xs'.1[i]'(by omega)
+
+    rcases h with ⟨hj, hl, hrt, hM⟩
+    have hj : j = hi := by omega
+    subst hj
+    split_ands
+    omega
     . rcases hM with ⟨M', hM', hM'l⟩
-      have := swap_array_decomp hM' i hi (by omega) (by omega) (by omega) (by omega)
-      dsimp [Vector.toList]
-      rw [this]
-      simp only [List.append_assoc, List.append_cancel_left_eq]
-      rw [← List.append_assoc]
-      simp only [List.append_right_inj, List.append_left_inj, List.cons_inj_right]
-      have := subarray_decomp this
-      rw [← this]
-      simp only [Array.length_toList, Array.size_swap]
+      rw [Vector.toList, swap_array_decomp]
+      rotate_left
+      exact hM'
+      omega
+      omega
+      omega
+      omega
+      rw [List.append_left_inj, List.append_assoc, List.append_right_inj]
+
+      apply Eq.trans
+      apply Eq.symm
+      apply subarray_decomp
+      . apply swap_array_decomp
+        exact hM'
+        omega
+        omega
+        omega
+        omega
+
+      conv =>
+        lhs
+        simp only [Array.length_toList] -- FIXME why doesn't `rw` work here?
+        rw [Array.size_swap]
+        simp only [Array.size] -- FIXME why can't combine into `rw` above?
+        rw [hlo, hM'l, hhi]
       sorry
     .
       have hl' : ∀ (b : α), b ∈ l ↔ ∃ (x : Fin n), lo ≤ x ∧ x < i ∧ xs'.get x = b := sorry
@@ -298,8 +316,9 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
       rw [hl']
       rintro ⟨x, ⟨h1, h2, rfl⟩⟩
       rw [Array.getElem_swap_left]
-      simp only [Vector.get, Fin.getElem_fin]
-      rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
+      rw [Vector.get, Fin.getElem_fin]
+      simp only
+      rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)] -- FIXME
       apply hl
       split_ands
       have := x.2 -- FIXME why?
@@ -313,28 +332,36 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     rw [Array.getElem_swap_left]
     if h : x = hi then
       subst h
-      simp only [Vector.get, Fin.getElem_fin]
+      rw [Vector.get, Fin.getElem_fin]
       rw [Array.getElem_swap_right]
-      -- simp only [Vector.get, Fin.getElem_fin] at hrt
       apply hrt
+      omega
+      split_ands
       omega
       omega
     else
       simp only [Vector.get, Fin.getElem_fin]
       intros
       -- have hr : r.val[(x : Nat)] = xs'.val[(x : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
-      rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
-      apply hrt
-      omega
-      split_ands
-      omega
-      omega
+      . rw [Array.getElem_swap_of_ne]
+        rotate_left -- FIXME better way to restrict to JUST those introduced by `rw` above?
+        have := s.xs.2 -- FIXME why?
+        omega
+        omega
+        omega
+        apply hrt
+        omega
+        . split_ands
+          omega
+          omega
 
   . next i j _ _ _ _ s h' hhihj _ _ _ _ =>
-    simp at h'
+    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, FailConds.pure_def, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil, SPred.entails_cons, SPred.entails_nil, forall_const]
+    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, FailConds.pure_def, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h'
+
     rcases h' with ⟨hj, hl, hr, hM⟩
-    simp [-Array.toList_swap]
-    refine ⟨by omega, fun x => ?_, fun x => ?_, ?_⟩
+    simp only [List.length_cons]
+    refine ⟨by omega, fun x hx => ?_, fun x hx => ?_, ?_⟩
     if h' : x = i then
       subst h'
       simp at le_asymm
@@ -346,49 +373,67 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     else
       intros
       rw [Vector.get, Fin.getElem_fin]
-      simp [Vector.get]
+      rw [Vector.get, Fin.getElem_fin]
+      simp only
       rw [Array.getElem_swap_of_ne, Array.getElem_swap_of_ne]
       apply hl _
       all_goals omega
     if h' : x = j then
       subst h'
       intros
-      simp [Vector.get, Fin.getElem_fin]
-      rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
-      apply hr ⟨i, by omega⟩
-      simp only [Nat.le_refl]
+      rw [Vector.get, Fin.getElem_fin, Array.getElem_swap_right]
+      rw [Vector.get, Fin.getElem_fin]
       simp only
+      rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)] -- FIXME
+      apply hr i
+      omega
+      split_ands
+      omega
       omega
     else
       intros
-      simp [Vector.get]
-      rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
-      rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
-      apply hr _ (by omega) (by omega)
+      rw [Vector.get, Fin.getElem_fin]
+      rw [Vector.get, Fin.getElem_fin]
+      simp only
+      rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)] -- FIXME
+      rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)] -- FIXME
+      apply hr
+      omega
+      omega
     rcases hM with ⟨M', hM', hM'l⟩
-    rw [← List.append_assoc] at hM'
-    rw [swap_array_decomp hM' _ _ (by omega) (by omega) (by omega) (by omega)]
-    refine ⟨( M'.toArray.swap (i - L.length) (j - L.length) sorry sorry).toList, ?_⟩
-    simpa only [List.swap_toArray, List.append_assoc, List.length_set, true_and]
-    -- next i j _ _ _ s _ _ =>
-    -- . sorry
+    rw [swap_array_decomp hM' _ _ (by omega) (by omega) (by omega) (by omega)] -- FIXME
+    refine ⟨?_, ?_⟩ -- FIXME
+    rotate_left -- FIXME
+    split_ands
+    rw [List.append_left_inj, List.append_right_inj]
+    exact rfl -- FIXME why can't `apply` here?
+    -- simp only [List.swap_toArray, List.append_assoc, List.length_set, true_and]
+    -- sorry
+    rw [Array.length_toList, Array.size_swap, Array.size] -- FIXME why doesn't `rw` work here?
+    simp only
+    assumption
 
   . next i j _ _ _ _ s h' hhihj _ _ =>
-    simp at h'
+    -- TODO automate
+    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, FailConds.pure_def, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil, SPred.entails_cons, SPred.entails_nil, forall_const]
+    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, FailConds.pure_def, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h'
+
     rcases h' with ⟨hj, hl, hr, hM⟩
-    simp [-Array.toList_swap]
-    refine ⟨by omega, fun x => ?_, fun x => ?_, ?_⟩
-    apply hl _ 
-    if h' : x = j then
-      subst h'
+    simp only [List.length_cons]
+    split_ands
+    . omega
+    . intros
+      apply hl
+      assumption
+    . intros x 
       intros
-      simp [Vector.get, Fin.getElem_fin]
-      simp at hhihj
-      exact hhihj
-    else
-      intros
-      apply hr _ (by omega) (by omega)
-    exact hM
+      if h' : x = j then
+        subst h'
+        assumption
+      else
+        apply hr
+        omega
+    assumption
 
 -- #eval #[1, 2, 3, 4][1:3].toArray
 theorem qsort_rec_perm (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
