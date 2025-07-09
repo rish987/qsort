@@ -9,6 +9,23 @@ namespace MPL
 
 open List
 
+-- def MWE (n : Nat) : (m : Nat) → n = m + 1 → Nat := by
+--   let i : Nat := ?_
+--   intro m h
+--   -- clear n -- not allowed
+--   subst h
+--   have test : i = 0 := by
+--     unfold i
+--     -- type mismatch
+--     --      rfl
+--     --    has type
+--     --      ?m.148 = ?m.148 : Prop
+--     --    but is expected to have type
+--     --      ?m.100 (m + 1) = 0 : Prop
+--     exact rfl
+--   exact 0
+
+
 namespace Monadic
 
 variable {α : Type} {n : Nat}
@@ -184,6 +201,8 @@ theorem swap_array_decomp {X : Array α} {A B C : List α} (hX : X.toList = A ++
 
 theorem subarray_decomp {X : Array α} {A B C : List α} (hX : X.toList = A ++ B ++ C) : X[A.length:A.length + B.length].toArray.toList = B := sorry
 
+theorem vec_subarray (xs : Vector α n) : ∀ (a : α), a ∈ xs.1[lo:hi].toArray.toList ↔ ∃ (x : Nat) (hx : x < n), lo ≤ x ∧ x < hi ∧ xs.get ⟨x, hx⟩ = a := sorry
+
 -- set_option pp.proofs true in
 set_option trace.Meta true in
 theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
@@ -267,19 +286,32 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     simp only [List.length_reverse, List.length_range'] at h
     simp only [Nat.add_one_sub_one, Nat.div_one] at h
 
-    -- FIXME how to avoid?
-    let xs' : Vector α n := ⟨s.xs.val.swap i (↑hi) sorry
-            sorry,
-          sorry⟩
-    let l := xs'.1[lo:i].toArray.toList
-    let rt := xs'.1[i + 1:hi + 1].toArray.toList
+    -- FIXME we should have some `s'` made available from `mvcgen` so that we don't have to do this
+    let xs' : Vector α n := ⟨s.xs.val.swap i (↑hi) sorry sorry, sorry⟩
+
+    -- FIXME want to make these mvars that are assigned later on via unification (search space is too large otherwise)
+    let l_lo := lo
+    let l_hi := i
+    let rt_lo := i + 1
+    let rt_hi := (hi : Nat) + 1
+
+    let l := xs'.1[l_lo:l_hi].toArray.toList
+    let rt := xs'.1[rt_lo:rt_hi].toArray.toList
 
     have : l.length = i - lo := by sorry
 
-    exists l, rt, xs'.1[i]'(by omega)
+    let test : (Nat × Nat) := (0, 1)
+    let pi : Nat := i
+    have pi_prf : pi < xs'.val.size := sorry
+    exists l, rt, xs'.1[pi]'pi_prf
 
-    rcases h with ⟨hj, hl, hrt, hM⟩
+    -- let (a, b) := test
+    have ⟨hj, hl, hrt, hM⟩ := h
     have hj : j = hi := by omega
+    -- have : pi = i := by
+    --   unfold pi
+    --   set_option pp.proofs true in
+    --   exact rfl
     subst hj
     split_ands
     omega
@@ -311,23 +343,20 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
         rw [hlo, hM'l, hhi]
       sorry
     .
-      have hl' : ∀ (b : α), b ∈ l ↔ ∃ (x : Fin n), lo ≤ x ∧ x < i ∧ xs'.get x = b := sorry
       intro b
-      rw [hl']
-      rintro ⟨x, ⟨h1, h2, rfl⟩⟩
+      rw [vec_subarray]
+      rintro ⟨x, hx, ⟨h1, h2, rfl⟩⟩
       rw [Array.getElem_swap_left]
       rw [Vector.get, Fin.getElem_fin]
       simp only
       rw [Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)] -- FIXME
       apply hl
       split_ands
-      have := x.2 -- FIXME why?
       omega
       omega
       omega
-    have hrt' : ∀ (b : α), b ∈ rt ↔ ∃ (x : Nat) (hx : x < n), i < x ∧ x ≤ hi ∧ xs'.get ⟨x, hx⟩ = b := sorry
     intro b
-    rw [hrt']
+    rw [vec_subarray]
     rintro ⟨x, _, ⟨h1, h2, rfl⟩⟩
     rw [Array.getElem_swap_left]
     if h : x = hi then
@@ -340,7 +369,8 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
       omega
       omega
     else
-      simp only [Vector.get, Fin.getElem_fin]
+      rw [Vector.get, Fin.getElem_fin]
+      simp only
       intros
       -- have hr : r.val[(x : Nat)] = xs'.val[(x : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
       . rw [Array.getElem_swap_of_ne]
@@ -360,15 +390,19 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, FailConds.pure_def, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h'
 
     rcases h' with ⟨hj, hl, hr, hM⟩
-    simp only [List.length_cons]
+
+    rw [List.length_cons]
+
     refine ⟨by omega, fun x hx => ?_, fun x hx => ?_, ?_⟩
     if h' : x = i then
       subst h'
-      simp at le_asymm
-      simp
-      refine fun _ => le_asymm ?_
-      simp only [Vector.get, Fin.getElem_fin]
-      rw [Array.getElem_swap_left, Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)]
+      simp only [Nat.lt_add_one, and_true]
+      intro _
+      apply le_asymm
+      rw [Vector.get, Fin.getElem_fin]
+      rw [Vector.get, Fin.getElem_fin]
+      simp only
+      rw [Array.getElem_swap_left, Array.getElem_swap_of_ne (by have := s.xs.2; omega) (by omega) (by omega)] -- FIXME
       exact hhihj
     else
       intros
