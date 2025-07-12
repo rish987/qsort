@@ -1,7 +1,7 @@
 import Std.Data.TreeMap
 import Std.Tactic.Do
 import Qsort.AuxLemmas
-import Qsort.Monadic.Simp
+import Qsort.Monadic.Aux
 
 set_option mvcgen.warning false
 
@@ -158,20 +158,6 @@ theorem qpartition_maybeSwap_perm
      M'.Perm M⌝⦄ := by
   sorry
 
--- open Lean Elab Tactic Meta in
--- elab "decompose_all" : tactic => do
---   let lctx := (← (← getMainGoal).getDecl).lctx
---   for ldecl in lctx do
---     if ldecl.isImplementationDetail then continue
---     try
---       trace[Meta] s!"DBG[24]: TerminatingSV.lean:147 {ldecl.userName}"
---       trace[Meta] s!"DBG[24]: TerminatingSV.lean:147 {ldecl.fvarId.name}"
---       trace[Meta] s!"DBG[24]: TerminatingSV.lean:147 {ldecl.type}"
---       evalTactic (← `(tactic| cases $(.mk (mkIdent ldecl.userName)))) 
---     catch e =>
---       trace[Meta] s!"DBG[24]: TerminatingSV.lean:147 {← e.toMessageData.toString}"
---       pure ()
-
 @[spec]
 theorem qpartition_prep_perm
     {lo : Fin n} {hi : Fin n} (hle : lo ≤ hi := by omega) {L M R}
@@ -209,7 +195,6 @@ theorem _root_.ArrayToList.length_swap.{u} {α : Type u} {xs : Array α} {i j : 
   (xs.swap i j hi hj).toList.length = xs.toList.length := sorry
 
 attribute [sort] Vector.get Fin.getElem_fin Array.length_toList Array.size_swap List.append_left_inj List.append_right_inj List.length_cons ArrayToList.length_swap
-attribute [spred] SPred.and_cons SVal.curry_cons SVal.curry_nil SVal.uncurry_cons SVal.uncurry_nil SPred.and_nil
 -- set_option pp.proofs true in
 set_option trace.split.failure true in
 set_option trace.Meta true in
@@ -242,11 +227,7 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
       ⌜ ∃ M', (#xs).val.toList = L ++ M' ++ R ∧ M'.length = M.length⌝))
 
   case h_1.isFalse =>
-    . -- FIXME automate
-      mintro ∀s
-      mframe 
-      mpure_intro
-      simp only [spred] at *
+    . mvcgen_aux -- FIXME automate
 
       rcases h with ⟨rfl, _, _, _⟩
 
@@ -258,9 +239,8 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
       -- rcases h with ⟨rfl, -, -, -⟩
       contradiction
 
-  case success.pre1 => -- FIXME automate
-    mpure_intro
-    simp only [spred] at *
+  case success.pre1 =>
+    mvcgen_aux -- FIXME automate
 
     -- FIXME automate
     simp only [inv]
@@ -280,13 +260,11 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     apply List.Perm.length_eq
     assumption
   case h_1 =>
+    mvcgen_aux -- FIXME automate
+
     next inv' i j hloi hihi hij s => 
     simp only at hihi hloi hij -- FIXME automate
     clear inv' -- FIXME
-
-    -- FIXME automate
-    mpure_intro
-    simp only [spred] at *
 
     -- FIXME these simplifications are related to the use of `Specs.forin_range`, and should be automatically applied whenever that spec is used
     simp only [List.length_reverse, List.length_range'] at h
@@ -378,7 +356,6 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     else
       simp only [sort]
       intros
-      -- have hr : r.val[(x : Nat)] = xs'.val[(x : Nat)] := Array.getElem_swap_of_ne (by omega) (by omega) (by omega)
       . rw [Array.getElem_swap_of_ne]
         rotate_left -- FIXME better way to restrict to JUST those introduced by `rw` above?
         have := s.xs.2 -- FIXME why?
@@ -392,8 +369,7 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
           omega
 
   . next i j _ _ _ _ s hhihj =>
-    mpure_intro
-    simp only [spred] at *
+    mvcgen_aux -- FIXME automate
 
     rcases h with ⟨hj, hl, hr, hM⟩
 
@@ -442,9 +418,7 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     assumption
 
   . next i j _ _ _ _ s hhihj =>
-    -- TODO automate
-    mpure_intro
-    simp only [spred] at *
+    mvcgen_aux -- FIXME automate
 
     rcases h with ⟨hj, hl, hr, hM⟩
     simp only [sort] at *
