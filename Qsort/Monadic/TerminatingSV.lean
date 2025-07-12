@@ -1,4 +1,3 @@
-import Std.Data.TreeMap
 import Std.Tactic.Do
 import Qsort.AuxLemmas
 import Qsort.Monadic.Aux
