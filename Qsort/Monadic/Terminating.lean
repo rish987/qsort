@@ -1,9 +1,10 @@
-import MPL
+import Std.Data.TreeMap
+import Std.Tactic.Do
 import Batteries.Data.List.Perm
 import Batteries.Data.List.Lemmas
 import Qsort.AuxLemmas
 
-open MPL
+open Std.Do
 
 namespace MPL
 variable (T S : Type)
@@ -35,7 +36,7 @@ def Vector.get (xs : Vector α n) (i : Fin n) := xs.1[Fin.mk (i : Nat) (i.cast x
 
 def Vector.toList (xs : Vector α n) : List α := xs.1.toList
 
-def qpartition_maybeSwap (xs : Vector α n) (lt : α → α → Bool) (lo hi : Fin n) : Idd $ Vector α n :=
+def qpartition_maybeSwap (xs : Vector α n) (lt : α → α → Bool) (lo hi : Fin n) : Id $ Vector α n :=
     let hi := hi.cast xs.2.symm
     let lo := lo.cast xs.2.symm
     if lt (xs.1[hi]) (xs.1[lo]) then
@@ -50,14 +51,14 @@ theorem qpartition_maybeSwap_triple (xs : Vector α n)
    ⦃⌜True⌝⦄
    qpartition_maybeSwap xs lt lo hi
    ⦃⇓ (xs') => ∃ (M' : List α),
-     M'.length = M.length ∧
-     xs'.1.toList = L ++ M' ++ R ∧
-     M'.Perm M⦄ := by
+     ⌜M'.length = M.length⌝ ∧
+     ⌜xs'.1.toList = L ++ M' ++ R⌝ ∧
+     ⌜M'.Perm M⌝⦄ := by
   sorry
 
 def qpartition_prep (xs : Vector α n)
     (lt : α → α → Bool) (lo hi : Fin n) :
-    Idd $ Vector α n := do
+    Id $ Vector α n := do
   let mid : Fin n := ⟨(lo.1 + hi) / 2, by omega⟩
   let mut xs := xs
   xs ← qpartition_maybeSwap xs lt lo mid
@@ -73,16 +74,16 @@ theorem qpartition_prep_triple (xs : Vector α n)
    ⦃⌜True⌝⦄
    qpartition_prep xs lt lo hi
    ⦃⇓ (xs') => ∃ (M' : List α),
-     M'.length = M.length ∧
-     xs'.1.toList = L ++ M' ++ R ∧
-     M'.Perm M⦄ := by
+     ⌜M'.length = M.length⌝ ∧
+     ⌜xs'.1.toList = L ++ M' ++ R⌝ ∧
+     ⌜M'.Perm M⌝⦄ := by
   sorry
 
 -- FIXME why do `xs` binders produce errors when importing MPL
 /-- Partitions `xs[lo..=hi]`, returning a pivot point and the new array. -/
 @[inline] def qpartition (xs : Vector α n)
     (lt : α → α → Bool) (lo hi : Fin n) (hle : lo ≤ hi) :
-    Idd $ Vector α n × {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
+    Id $ Vector α n × {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
   let mut xs ← qpartition_prep xs lt lo hi
   let pivot := xs.1[hi.cast xs.2.symm]
   -- we must keep track of i and j and their respective properties all together within a single subtype,
@@ -115,7 +116,7 @@ theorem qpartition_prep_triple (xs : Vector α n)
 -- lo < mid + 1
 -- hi > mid - 1
 def qsort' {n} (lt : α → α → Bool) (xs : Vector α n)
-    (lo : Nat) (hi : Fin n) : Idd (Vector α n) := do
+    (lo : Nat) (hi : Fin n) : Id (Vector α n) := do
   if h : lo < hi.1 then
     let ⟨as', mid, (_ : lo ≤ mid), _⟩ ←
       qpartition xs lt ⟨lo, Nat.lt_trans h hi.2⟩ hi (Nat.le_of_lt h)
@@ -137,7 +138,7 @@ termination_by hi - lo
 
 /-- Sort the array `xs[low..=high]` using comparator `lt`. -/
 @[inline] def qsort (xs : Array α) (lt : α → α → Bool) :
-    Idd (Array α) := do
+    Id (Array α) := do
   if h : xs.size > 0 then
     pure (← qsort' lt ⟨xs, rfl⟩ 0 ⟨xs.size - 1, by omega⟩).1
   else pure xs
@@ -152,16 +153,16 @@ theorem qpartition_triple (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
    ⦃⌜True⌝⦄
    qpartition xs lt lo hi hle
    ⦃⇓ (xs', pivot) => ∃ (l r : List α) (a : α),
-     M.length = l.length + 1 + r.length ∧
-     lo + l.length = pivot ∧
-     xs'.1.toList = L ++ l ++ a::r ++ R ∧ (∀ b ∈ l, ¬lt a b) ∧ (∀ b ∈ r, ¬lt b a) ∧
-     (l ++ a::r).Perm M⦄ := by
+     ⌜M.length = l.length + 1 + r.length⌝ ∧
+     ⌜lo + l.length = pivot⌝ ∧
+     ⌜xs'.1.toList = L ++ l ++ a::r ++ R ∧ (∀ b ∈ l, ¬lt a b) ∧ (∀ b ∈ r, ¬lt b a)⌝ ∧
+     ⌜(l ++ a::r).Perm M⌝⦄ := by
   unfold qpartition
   mintro -
   let this :
     ⦃⌜True⌝⦄
       qpartition_prep xs lt lo hi
-    ⦃⇓xs' => ∃ M', M'.length = M.length ∧ xs'.val.toList = L ++ M' ++ R ∧ M'.Perm M⦄ := (qpartition_prep_triple (lt := lt) xs lo hi hle hlo hhi hxs)
+    ⦃⇓xs' => ∃ M', ⌜M'.length = M.length⌝ ∧ ⌜xs'.val.toList = L ++ M' ++ R⌝ ∧ ⌜M'.Perm M⌝⦄ := (qpartition_prep_triple (lt := lt) xs lo hi hle hlo hhi hxs)
   mspec this
   mspec
   case inv => exact PostCond.total fun (⟨⟨(i, j), _⟩, xs'⟩, sp) =>
@@ -344,7 +345,7 @@ theorem sorted_triple' (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans :
     have : M.length = 1 := by omega
     mpure_intro -- TODO should automatically remove `spred`
     simp only [Bool.not_eq_true, SPred.and_nil, SPred.exists_nil]
-    refine ⟨M, rfl, by simp only [Idd.run_pure]; exact hxs, ?_⟩
+    refine ⟨M, rfl, by simp only [Id.run_pure]; exact hxs, ?_⟩
     have : ∃ x, M = [x] := by sorry
     rw [this.choose_spec]
     simp

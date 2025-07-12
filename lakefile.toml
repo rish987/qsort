@@ -12,12 +12,12 @@ root = "Main"
 [[require]]
 name = "batteries"
 scope = "leanprover-community"
-rev = "v4.21.0-rc3"
+# rev = "v4.21.0-rc3"
 
-[[require]]
-name = "mpl"
-# git = "https://github.com/rish987/mpl"
-# rev = "qsort"
-path = "/root/mpl"
-# git = "https://github.com/sgraf812/mpl"
-# rev = "main"
+# [[require]]
+# name = "mpl"
+# # git = "https://github.com/rish987/mpl"
+# # rev = "qsort"
+# path = "/root/mpl"
+# # git = "https://github.com/sgraf812/mpl"
+# # rev = "main"
