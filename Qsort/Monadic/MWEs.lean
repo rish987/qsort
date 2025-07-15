@@ -16,15 +16,15 @@ noncomputable def F : Id Unit := do
 axiom P : Prop
 
 @[spec]
-axiom G_spec (h : P := by omega) :
+axiom G_spec (h : P) :
    ⦃⌜True⌝⦄ G 1 ⦃⇓ _ => ⌜0 < 1⌝⦄
 
-theorem qpartition_sorted (h : P) :
+theorem F_spec (h : P) :
    ⦃⌜True⌝⦄ F ⦃⇓ _ => ⌜0 < 1⌝⦄ := by
   unfold F
   mvcgen
-  -- FIXME (1) mvcgen should have handled this; is the `autoParam` interfering here?
-  case h => assumption
+  -- FIXME (1) mvcgen should have handled this
+  case h => sorry
 
 end AssumptionFail
 
@@ -220,6 +220,7 @@ abbrev gns : SVal ((Array Nat)::[]) (Array Nat) := fun s => SVal.pure s
 noncomputable def setZeroHead : StateM (Array Nat) Unit := do
   modify fun _ => #[0, 1, 2, 3, 4, 5]
 
+-- see TODO
 macro "mvcgen_aux" : tactic => do
   `(tactic|
     (repeat mintro ∀_
@@ -233,11 +234,16 @@ theorem setZeroHead_spec :
    ⦃⇓ _ => ⌜∃ ns', (#gns).toList = 0 :: ns'⌝⦄ := by
   unfold setZeroHead
   mvcgen
+  -- Goal:
+  -- s✝ : Array Nat
+  -- ⊢ 
+  -- h✝ : ⌜True⌝ s✝
+  -- ⊢ₛ ⌜∃ ns', (#gns tuple).toList = 0 :: ns'⌝ (PUnit.unit, #[0, 1, 2, 3, 4, 5]).snd
 
-  . -- FIXME (4) here, we would want mvcgen to have assigned some let variable
-    -- `s := #[0, 1, 2, 3, 4, 5]` so that we can use `s.tail` below instead of
-    -- having to rewrite part of the state that was set with `modify`
-    mvcgen_aux
-    exists [1, 2, 3, 4, 5]
+  -- FIXME (4) here, we would want mvcgen to have assigned some let variable
+  -- `s := #[0, 1, 2, 3, 4, 5]` so that we can use `s.tail` below instead of
+  -- having to rewrite part of the state that was set with `modify`
+  mvcgen_aux
+  exists [1, 2, 3, 4, 5]
 
 end NeedStateLVar
