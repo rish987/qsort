@@ -173,7 +173,7 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     omegas
     intros x _ _ _ -- FIXME
     -- set_option trace.Meta.debug true in
-    ite_rw x [Vector.swap.get_left]
+    ite x rw [Vector.swap.get_left]
     . rw [Vector.swap.get_other]
       apply le_asymm
       omegas
@@ -182,7 +182,7 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
       apply hl
       omegas
     intros x _ _ _ -- FIXME
-    ite_rw x [Vector.swap.get_right]
+    ite x rw [Vector.swap.get_right]
     . rw [Vector.swap.get_other]
       apply hr
       omegas
@@ -208,12 +208,10 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
     . intros x 
       intros
       omegas
-      if h' : j = x then -- FIXME use special `assumption'` tactic that does unification to figure out `j`
-        subst h'
-        assumption
-      else
-        apply hr
-        omegas
+      -- set_option trace.Meta.debug true in
+      ite x assumption
+      apply hr
+      omegas
     omegas
 
   omegas
@@ -269,7 +267,7 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
       omegas
     intros x _ _ _ -- FIXME
     rw [Vector.swap.get_left]
-    ite_rw x [Vector.swap.get_right]
+    ite x rw [Vector.swap.get_right]
     apply hr
     omegas
     . intros

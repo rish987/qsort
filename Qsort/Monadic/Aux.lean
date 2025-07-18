@@ -27,7 +27,7 @@ macro "omegas" : tactic => do
   `(tactic|
     (all_goals try omega))
 
-def iteTargetTrans (id : TSyntax `ident) (tac : MVarId → Expr → TacticM α) (finish : α → MVarId → TacticM (List MVarId)) : TacticM Unit := do
+def iteTargetTrans (id : TSyntax `ident) (tac : Syntax) : TacticM Unit := do
   Lean.Elab.Term.withSynthesize <| withMainContext do
     let mut toMvarizeDecls : Array LocalDecl := #[]
     let mut toMvarizeFVars : Array Expr := #[]
@@ -45,13 +45,11 @@ def iteTargetTrans (id : TSyntax `ident) (tac : MVarId → Expr → TacticM α) 
     let newTarget := target.replaceFVars toMvarizeFVars newMvars
     let newGoal ← mkFreshExprMVar newTarget
 
-    let r ← tac newGoal.mvarId! newTarget
-
-    let assigned ← (newMvars.zip toMvarizeFVars).filterM fun (mvar, _) => mvar.mvarId!.isAssigned
-    let unassigned ← (newMvars.zip toMvarizeFVars).filterM fun (mvar, _) => do pure <| not <| ← mvar.mvarId!.isAssigned
-    for (mvar, fvar) in unassigned do
-      let decl ← fvar.fvarId!.getDecl 
-      mvar.mvarId!.assign fvar
+    pushGoal newGoal.mvarId!
+    focus do
+      evalTactic tac
+      while (← getGoals).length > 0 do
+        discard popMainGoal
 
     let rec makeBranches (rem : List (Expr × Expr)) (target : Expr) (allInst : Bool) (goal : MVarId) : TacticM (List MVarId) := goal.withContext do
       match rem with
@@ -61,8 +59,6 @@ def iteTargetTrans (id : TSyntax `ident) (tac : MVarId → Expr → TacticM α) 
           makeBranches rem target allInst goal
         else
           let assignment ← instantiateMVars mvar
-          let targetInst := target.replaceFVar fvar assignment
-          let targetNoInst := target
 
           let T ← inferType fvar
           let α ← goal.getType
@@ -85,45 +81,16 @@ def iteTargetTrans (id : TSyntax `ident) (tac : MVarId → Expr → TacticM α) 
           goal.assign prf
           pure (tGoals ++ eGoals)
       | [] =>
-        if allInst then
-          finish r goal
-        else
-          pure [goal]
+        pure [goal]
 
+    -- trace[Meta.debug] s!"DBG[A]: Aux.lean:106: newGoals={(← getGoals).length}"
     let newGoals ← makeBranches (newMvars.zip toMvarizeFVars).toList target true (← getMainGoal)
-    -- trace[Meta.debug] s!"DBG[A]: Aux.lean:106: newGoals={newGoals.length}, {(← getGoals).length}"
     replaceMainGoal newGoals
+    evalTactic tac
 
-syntax (name := iteRewriteSeq) "ite_rw" optConfig ident rwRuleSeq (location)? : tactic
+syntax (name := iteTrans) "ite" ident tacticSeq : tactic
 
-def iteRewriteTarget (id : TSyntax `ident) (stx : Syntax) (symm : Bool) (config : Rewrite.Config := {}) : TacticM Unit := do
-  let tac := fun newGoal newTarget => do
-    let e ← elabTerm stx none true
-    if e.hasSyntheticSorry then
-      throwAbortTactic
-    newGoal.rewrite newTarget e symm (config := config)
-  let finish := fun r goal => do
-    for mvarId in r.mvarIds do
-      instantiateMVarDeclMVars mvarId
-    let r := {r with eNew := (← instantiateMVars r.eNew), eqProof := (← instantiateMVars r.eqProof)}
-
-    let mvarId' ← goal.replaceTargetEq (← instantiateMVars r.eNew) (← instantiateMVars r.eqProof)
-    pure (mvarId' :: (r.mvarIds))
-  iteTargetTrans id tac finish
-
-@[tactic iteRewriteSeq] def evalIteRewriteSeq : Tactic := fun stx => do
-  let cfg ← elabRewriteConfig stx[1]
-  let id    := stx[2]
-  let loc   := expandOptLocation stx[4]
-  withRWRulesSeq stx[0] stx[3] fun symm term => do
-    withLocation loc
-      (rewriteLocalDecl term symm · cfg)
-      (do
-        iteRewriteTarget (.mk id) term symm cfg
-      )
-      (throwTacticEx `rewrite · "did not find instance of the pattern in the current goal")
-
-syntax (name := iteAssumption) "ite_assumption" optConfig ident rwRuleSeq (location)? : tactic
-
-@[tactic iteAssumption] def evalIteAssumption : Tactic := fun stx => do
-  sorry
+@[tactic iteTrans] def evalIteTrans : Tactic := fun stx => do
+  let id    := stx[1]
+  let tac   := stx[2]
+  iteTargetTrans (.mk id) tac
