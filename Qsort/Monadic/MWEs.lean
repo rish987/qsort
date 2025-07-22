@@ -23,8 +23,6 @@ theorem F_spec (h : P) :
    ⦃⌜True⌝⦄ F ⦃⇓ _ => ⌜0 < 1⌝⦄ := by
   unfold F
   mvcgen
-  -- FIXME (1) mvcgen should have handled this
-  case h => sorry
 
 end AssumptionFail
 
@@ -58,6 +56,16 @@ axiom G_spec : ⦃⌜True⌝⦄ G ⦃⇓ _ => ⌜P #n⌝ ∧ ⌜P' #n⌝⦄
 @[spec]
 axiom H_spec : ⦃⌜Q #n⌝⦄ H ⦃⇓ _ => R⦄
 
+noncomputable def test : StateM Nat Unit := do
+  modify fun s => 0
+  pure ()
+
+theorem test_spec : ⦃⌜True⌝⦄ test ⦃⇓ _ => ⌜#n ≤ 0⌝⦄ := by
+unfold test
+mvcgen
+simp only
+mspec
+
 theorem F_spec :
    ⦃⌜True⌝⦄
    F
@@ -90,10 +98,9 @@ theorem F_spec' :
    ⦃⇓ _ => R⦄ := by
   unfold F
   mvcgen
-  mvcgen_aux
+  mleave
 
-  cases h
-  apply hPQ <;> assumption
+  apply hPQ
 
 end MakeGoalPure
 
@@ -133,10 +140,14 @@ theorem setZero_spec :
       ⌜∀ j, (j < i) → (h : j < (#gns).size) → (#gns)[j]'h = 0⌝
 
   -- FIXME (3.3) why did `i` get renamed to `b`?
-  . mvcgen_aux
+  . mintro t
+    mvcgen
+    mleave
+    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h -- FIXME `mvcgen` should have taken care of this?
     rcases h with ⟨hs, hi, hz⟩ -- FIXME (3.2)
 
     simp only [← hs]
+    simp only [t]
     simp only [Array.size_set]
     and_intros
     . trivial
@@ -228,11 +239,18 @@ macro "mvcgen_aux" : tactic => do
      mpure_intro
      simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at *))
 
+theorem Spec.mymodifyGet_StateT [Monad m] [WPMonad m ps] :
+  ⦃fun s => let t := f s; Q.1 t.1 t.2⦄ (MonadStateOf.modifyGet f : StateT σ m α) ⦃Q⦄ := by
+    simp [Triple]
+
 theorem setZeroHead_spec :
    ⦃⌜True⌝⦄
    setZeroHead
    ⦃⇓ _ => ⌜∃ ns', (#gns).toList = 0 :: ns'⌝⦄ := by
   unfold setZeroHead
+  mstart
+  mintro h ∀s
+  mspec Spec.mymodifyGet_StateT
   mvcgen
   -- Goal:
   -- s✝ : Array Nat
