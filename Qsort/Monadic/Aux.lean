@@ -32,9 +32,10 @@ def iteTargetTrans (id : TSyntax `ident) (tac : Syntax) : TacticM Unit := do
     let mut toMvarizeDecls : Array LocalDecl := #[]
     let mut toMvarizeFVars : Array Expr := #[]
     let target ← getMainTarget
+    let ctx ← getLCtx
     for decl in ← getLCtx do
       if let .cdecl .. := decl then
-        if decl.userName == id.getId && target.containsFVar decl.fvarId then
+        if decl.userName == id.getId && (target.containsFVar decl.fvarId || ctx.containsFVar decl.toExpr) then
           toMvarizeDecls := toMvarizeDecls.push decl
           toMvarizeFVars := toMvarizeFVars.push decl.toExpr
     let mut newMvars : Array Expr := #[]
@@ -43,7 +44,10 @@ def iteTargetTrans (id : TSyntax `ident) (tac : Syntax) : TacticM Unit := do
       let newMvar ← mkFreshExprMVar decl.type 
       newMvars := newMvars.push newMvar
     let newTarget := target.replaceFVars toMvarizeFVars newMvars
-    let newGoal ← mkFreshExprMVar newTarget
+    let mut newCtx := ctx
+    for (fvar, newMvar) in toMvarizeFVars.zip newMvars do
+      newCtx := newCtx.replaceFVarId fvar.fvarId! newMvar
+    let newGoal ← withLCtx' newCtx $ mkFreshExprMVar newTarget
 
     pushGoal newGoal.mvarId!
     focus do
@@ -94,3 +98,37 @@ syntax (name := iteTrans) "ite" ident tacticSeq : tactic
   let id    := stx[1]
   let tac   := stx[2]
   iteTargetTrans (.mk id) tac
+
+syntax (name := existsMvar) "exists?" : tactic
+
+def evalApplyLikeTactic (tac : MVarId → Expr → MetaM (List MVarId)) (e : Expr) : TacticM Unit := do
+  withMainContext do
+    let mut val ← instantiateMVars e
+    if val.isMVar then
+      /-
+      If `val` is a metavariable, we force the elaboration of postponed terms.
+      This is useful for producing a more useful error message in examples such as
+      ```
+      example (h : P) : P ∨ Q := by
+        apply .inl
+      ```
+      Recall that `apply` elaborates terms without using the expected type,
+      and the notation `.inl` requires the expected type to be available.
+      -/
+      Term.synthesizeSyntheticMVarsNoPostponing
+      val ← instantiateMVars val
+    let mvarIds' ← tac (← getMainGoal) val
+    Term.synthesizeSyntheticMVarsNoPostponing
+    replaceMainGoal mvarIds'
+
+@[tactic existsMvar] def evalExistsMvar : Tactic := fun _ => do
+  let target ← getMainTarget
+  if let (.const ``Exists [u]) := target.getAppFn then
+    let type := target.getAppArgs[0]!
+    let pred := target.getAppArgs[1]!
+    let newMvar ← mkFreshExprMVar type 
+
+    let e := (mkAppN (.const ``Exists.intro [u]) #[type, pred, newMvar])
+    evalApplyLikeTactic (·.apply) e
+  else
+    throwError "expected Exists application in goal, got {indentExpr target}"

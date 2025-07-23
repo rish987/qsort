@@ -73,16 +73,9 @@ theorem F_spec :
   unfold F
   mvcgen
 
-  -- FIXME (2) ideally, mvcgen would do these four steps automatically for us
-  mintro ∀_
-  mframe
-  mpure_intro
-  simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at *
+  mleave
 
-  cases h
   apply hPQ
-  assumption
-  assumption
 
 -- in general, mvcgen should do something like this:
 macro "mvcgen_aux" : tactic => do
@@ -139,84 +132,24 @@ theorem setZero_spec :
       ⌜ i = sp.rpref.length ⌝ ∧
       ⌜∀ j, (j < i) → (h : j < (#gns).size) → (#gns)[j]'h = 0⌝
 
-  -- FIXME (3.3) why did `i` get renamed to `b`?
   . mintro t
     mvcgen
     mleave
     simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h -- FIXME `mvcgen` should have taken care of this?
-    rcases h with ⟨hs, hi, hz⟩ -- FIXME (3.2)
+    grind
 
-    simp only [← hs]
-    simp only [t]
-    simp only [Array.size_set]
-    and_intros
-    . trivial
-    . simp
-      exact hi
-    intros j hj hjs
-    if j < b then
-      rw [Array.getElem_set_ne]
-      apply hz
-      assumption
-      omega
-      omega
-    else
-      have : j = b := by omega
-      subst this
-      apply Array.getElem_set_self
+  . mleave
+    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h -- FIXME
+    grind
 
-  . mvcgen_aux
-    rcases h with ⟨hs, hi, hz⟩ -- FIXME see (3.2)
+  . mleave
+    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h -- FIXME
+    grind
 
-    -- FIXME (3.4) this should be automated, somehow?
-    -- Perhaps by annotating the spec's precondition `⌜#gns = ns⌝` in some way
-    next hns _ _ =>
-    have hns := hns.symm
-    subst hns
-    clear hns
-
-    -- FIXME (3.5) this property should be provided to us by `Spec.forIn_range`?
-    have hrng_dec_sz : (rpref.reverse ++ x :: suff).length = len := by
-      rw [← h]
-      simp only [List.length_range', Nat.sub_zero, Nat.add_one_sub_one, Nat.div_one]
-    rw [List.length_append, List.length_reverse, List.length_cons] at hrng_dec_sz
-
-    subst hi
-    have : rpref.length < ns.size := by omega
-    rw [hs] at *
-    contradiction
-
-  . mvcgen_aux
-
-    subst h
-    and_intros
-    rfl
-    rfl
-    omega
-
-  . mvcgen_aux
-    -- FIXME (3.6) these simplifications are specific to the use of `Specs.forin_range`,
-    -- and should probably be automatically applied whenever that spec is used
-    simp only [List.length_reverse, List.length_range'] at h
-    simp only [Nat.add_one_sub_one, Nat.div_one] at h
-
-    -- FIXME see (3.4)
-    next hns _ _ =>
-    have hns := hns.symm
-    subst hns
-    clear hns
-
-    rcases h with ⟨hs, hi, hz⟩ -- FIXME see (2)
-
-    simp only [Nat.sub_zero] at hi
-    subst hi
-    rw [← hs]
-    and_intros
-    rfl
-    intros i hi'
-    apply hz
-    omega
-    omega
+  . mleave
+    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h -- FIXME
+    simp only [List.length_reverse, List.length_range']
+    grind
 
 end LoopStuff
 
