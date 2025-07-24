@@ -105,16 +105,6 @@ def evalApplyLikeTactic (tac : MVarId → Expr → MetaM (List MVarId)) (e : Exp
   withMainContext do
     let mut val ← instantiateMVars e
     if val.isMVar then
-      /-
-      If `val` is a metavariable, we force the elaboration of postponed terms.
-      This is useful for producing a more useful error message in examples such as
-      ```
-      example (h : P) : P ∨ Q := by
-        apply .inl
-      ```
-      Recall that `apply` elaborates terms without using the expected type,
-      and the notation `.inl` requires the expected type to be available.
-      -/
       Term.synthesizeSyntheticMVarsNoPostponing
       val ← instantiateMVars val
     let mvarIds' ← tac (← getMainGoal) val
@@ -130,5 +120,6 @@ def evalApplyLikeTactic (tac : MVarId → Expr → MetaM (List MVarId)) (e : Exp
 
     let e := (mkAppN (.const ``Exists.intro [u]) #[type, pred, newMvar])
     evalApplyLikeTactic (·.apply) e
+    modify fun s => { goals := s.goals.filter (· != newMvar.mvarId!)}
   else
     throwError "expected Exists application in goal, got {indentExpr target}"

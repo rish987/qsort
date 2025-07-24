@@ -54,26 +54,22 @@ def qpartition_prep
     StateM (ST α n) $ {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
   qpartition_prep lt lo hi
   let pivot := (← get).xs.get hi
-  -- we must keep track of i and j and their respective properties all together within a single subtype,
-  -- because these dependent properties must be shown in parallel to reassigning the indices
-  let mut inv : {t : Nat × Nat // lo ≤ t.1 ∧ t.1 ≤ hi ∧ t.1 ≤ t.2} := ⟨(lo, lo), by omega, by omega⟩
+  let mut i : Nat := lo
+  let mut j : Nat := lo
+  -- let mut inv : {t : Nat × Nat // lo ≤ t.1 ∧ t.1 ≤ hi ∧ t.1 ≤ t.2} := ⟨(lo, lo), by omega, by omega⟩
   for _ in [lo:hi] do
-    let mut ⟨(i, j), hloi, hihi, hij⟩ := inv
     -- FIXME want to use `assert hjhi : j < hi` here, deferring its proof to the correctness proof
     if hjhi : j < hi then
-      have _ : i < hi := Nat.lt_of_le_of_lt hij hjhi
+      -- have _ : i < hi := Nat.lt_of_le_of_lt hij hjhi
       let xs := (← get).xs -- FIXME
-      if lt (xs.get ⟨j, by omega⟩) (xs.get ⟨x, sorry⟩) then
-        mxs fun xs => xs.swap i j
+      if lt (xs.get ⟨j, sorry⟩) (xs.get ⟨x, sorry⟩) then
+        mxs fun xs => xs.swap i j sorry sorry
         i := i + 1
         j := j + 1
-        inv := ⟨(i, j), Nat.le_succ_of_le hloi, by omega, by omega⟩
       else
         j := j + 1
-        inv := ⟨(i, j), hloi, by omega, by omega⟩
-  let ⟨(i, _), hloi, hihi, _⟩ := inv
-  mxs fun xs => xs.swap i hi
-  pure ⟨i, hloi, hihi⟩
+  mxs fun xs => xs.swap i hi sorry sorry
+  pure ⟨i, sorry, sorry⟩
 
 variable {lt : α → α → Bool} (lt_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
 
@@ -233,20 +229,21 @@ theorem sorted
   omegas
 
   case inv =>
-    exact PostCond.total fun (⟨⟨i, j⟩, _⟩, sp) =>
+    exact PostCond.total fun (⟨i, j⟩, sp) =>
       SPred.and -- FIXME want to use ∧ notation instead
-      ⌜j = lo + sp.rpref.length⌝ -- FIXME can we individually label these with names for use with `mcases`?
+      (⌜j = lo + sp.rpref.length⌝) -- FIXME can we individually label these with names for use with `mcases`?
+      (SPred.and
+      (⌜lo ≤ i ∧ i ≤ hi ∧ i ≤ j⌝)
       (SPred.and
       ⌜(∀ (x : Nat) (hx : x < n), lo ≤ x → x < i → ¬ lt ((#gxs).get hi) ((#gxs).get ⟨x, hx⟩))⌝
       (SPred.and
       ⌜(∀ (x : Nat) (hx : x < n), i ≤ x → x < j → ¬ lt ((#gxs).get ⟨x, hx⟩) ((#gxs).get hi))⌝
       ⌜Stable #gxs xs lo hi ⌝
-      )
-      )
+      )))
 
   . mvcgen_aux -- FIXME automate
 
-    rcases h with ⟨hj, hl, hr, _⟩ -- FIXME
+    rcases h with ⟨hj, _, hl, hr, _⟩ -- FIXME
 
     rw [List.length_cons]
 
@@ -258,7 +255,6 @@ theorem sorted
     . rw [Vector.swap.get_other]
       apply le_asymm
       omegas
-      assumption
     . rw [Vector.swap.get_other]
       rw [Vector.swap.get_other]
       apply hl
@@ -277,15 +273,12 @@ theorem sorted
 
   . mvcgen_aux -- FIXME automate
 
-    rcases h with ⟨hj, hl, hr, _⟩
+    rcases h with ⟨hj, _, hl, hr, _⟩
 
     rw [List.length_cons]
     
     and_intros
-    . omegas
-    . intros
-      apply hl
-      omegas
+    omegas
     . intros x 
       intros
       omegas
@@ -293,14 +286,14 @@ theorem sorted
       ite y ite x assumption
       apply hr
       omegas
-      sorry
     omegas
 
   omegas
 
-  case h_1.isFalse =>
+  case step.isFalse =>
     mleave
-    intros s hj hl hr
+    rcases b with ⟨i, j⟩
+    intros s hj _ _ _ hl hr
     subst hj
 
     -- FIXME FIXME both of these properties should be provided by Spec.forIn_range?
@@ -320,20 +313,18 @@ theorem sorted
     mvcgen_aux
 
     -- FIXME automate
-    simp only [inv]
     dsimp
 
     and_intros
     omegas
 
-  case h_1 =>
-    mvcgen_aux
+  . mvcgen_aux
 
     -- FIXME FIXME these simplifications are related to the use of `Specs.forin_range`, and should be automatically applied whenever that spec is used
     simp only [List.length_reverse, List.length_range'] at h
     simp only [Nat.add_one_sub_one, Nat.div_one] at h
 
-    rcases h with ⟨hj, hl, hr, _⟩ -- FIXME
+    rcases h with ⟨hj, _, hl, hr, _⟩ -- FIXME
 
     and_intros
     . apply Vector.swap.stable
