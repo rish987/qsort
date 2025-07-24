@@ -49,7 +49,7 @@ def qpartition_prep
 
 -- FIXME why do `xs` binders produce errors when importing MPL
 /-- Partitions `xs[lo..=hi]`, returning a pivot point and the new array. -/
-@[inline] def qpartition (x : Nat)
+@[inline] def qpartition (x y : HP Nat → HP Nat → Nat)
     (lt : α → α → Bool) (lo hi : Fin n) (hle : lo ≤ hi) :
     StateM (ST α n) $ {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
   qpartition_prep lt lo hi
@@ -62,7 +62,7 @@ def qpartition_prep
     if hjhi : j < hi then
       -- have _ : i < hi := Nat.lt_of_le_of_lt hij hjhi
       let xs := (← get).xs -- FIXME
-      if lt (xs.get ⟨j, sorry⟩) (xs.get ⟨x, sorry⟩) then
+      if lt (xs.get ⟨y i j, sorry⟩) (xs.get ⟨x i j, sorry⟩) then
         mxs fun xs => xs.swap i j sorry sorry
         i := i + 1
         j := j + 1
@@ -210,18 +210,18 @@ theorem sorted
    (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
    (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi)
    :
-   ∃ x,
+   ∃ x y,
    ⦃⌜#gxs = xs⌝⦄
-   qpartition x lt lo hi hle
+   qpartition x y lt lo hi hle
    ⦃⇓ pivot => ⌜
      Stable #gxs xs lo hi ∧
      (∀ (i : Nat) (h : i < n), i < pivot.1 → i ≥ lo → ¬lt ((#gxs).get ⟨pivot.1, by omega⟩) ((#gxs).get ⟨i, h⟩)) ∧
      (∀ (i : Nat) (h : i < n), i > pivot.1 → i ≤ hi → ¬lt ((#gxs).get ⟨i, h⟩) ((#gxs).get ⟨pivot.1, by omega⟩))⌝⦄ := by
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
-  -- let y : Nat := ?_
   -- apply Exists.intro y
-  set_option pp.all true in
-  exists?
+  -- set_option pp.all true in
+  exists? mvar1
+  exists? mvar2
   -- have : y = hi := by exact rfl
   unfold qpartition
   mvcgen [qpartition_prep.stable]
@@ -250,11 +250,12 @@ theorem sorted
     and_intros
     omegas
     intros x _ _ _ -- FIXME
-    -- set_option trace.Meta.debug true in
+    set_option trace.Meta.debug true in
     ite x rw [Vector.swap.get_left]
     . rw [Vector.swap.get_other]
       apply le_asymm
       omegas
+      inst mvar1 inst mvar2 assumption
     . rw [Vector.swap.get_other]
       rw [Vector.swap.get_other]
       apply hl

@@ -99,7 +99,7 @@ syntax (name := iteTrans) "ite" ident tacticSeq : tactic
   let tac   := stx[2]
   iteTargetTrans (.mk id) tac
 
-syntax (name := existsMvar) "exists?" : tactic
+syntax (name := existsMvar) "exists?" ident : tactic
 
 def evalApplyLikeTactic (tac : MVarId → Expr → MetaM (List MVarId)) (e : Expr) : TacticM Unit := do
   withMainContext do
@@ -111,15 +111,126 @@ def evalApplyLikeTactic (tac : MVarId → Expr → MetaM (List MVarId)) (e : Exp
     Term.synthesizeSyntheticMVarsNoPostponing
     replaceMainGoal mvarIds'
 
-@[tactic existsMvar] def evalExistsMvar : Tactic := fun _ => do
+@[tactic existsMvar] def evalExistsMvar : Tactic := fun stx => do
+  let id : Name := (TSyntax.mk stx[1]).getId
   let target ← getMainTarget
   if let (.const ``Exists [u]) := target.getAppFn then
     let type := target.getAppArgs[0]!
     let pred := target.getAppArgs[1]!
-    let newMvar ← mkFreshExprMVar type 
+    let newMvar ← mkFreshExprMVar type (userName := id)
 
     let e := (mkAppN (.const ``Exists.intro [u]) #[type, pred, newMvar])
     evalApplyLikeTactic (·.apply) e
     modify fun s => { goals := s.goals.filter (· != newMvar.mvarId!)}
   else
     throwError "expected Exists application in goal, got {indentExpr target}"
+
+syntax (name := inst) "inst" ident tacticSeq : tactic
+
+-- marker for "hole parameters"
+abbrev HP : Sort u → Sort u := id
+
+@[tactic inst] def evalInst : Tactic := fun stx => withMainContext $ Tactic.focus do
+  let id : Name := (TSyntax.mk stx[1]).getId
+  let tac   := stx[2]
+  let mctx := ← getMCtx
+  let some mvar := mctx.findUserName? id | throwError "could not find '{id}' in metavariable context"
+  let rec countHPs (e : Expr) (n : Nat) := do
+    match e with
+    | .forallE _ d b _ =>
+      if d.isAppOf ``HP then
+        countHPs b (n + 1)
+      else
+        pure n
+    | _ => 
+      pure n
+  let type ← mvar.getType
+  let numHPs ← countHPs type 0
+  let lctx ← getLCtx
+  let target ← getMainTarget
+
+  let tryReplace decl := do
+    let mut ret := false
+    if decl.type.hasMVar then
+      ret := true
+    else if let some val := decl.value? then
+      if val.hasMVar then
+        ret := true
+    pure ret
+
+  let mut mvarApp? := none
+
+  let getMVarApp? (e : Expr) : Option Expr := do
+    e.find? fun sube =>
+      if let .mvar id .. := sube.getAppFn then
+        if id == mvar then
+          if sube.getAppArgs.size == numHPs then
+            true
+          else
+            false
+        else
+          false
+      else
+        false
+
+  for decl in lctx do
+    unless ← tryReplace decl do continue
+    match decl with
+      | .cdecl i fv n t b k =>
+        if let some mvarApp := getMVarApp? t then
+          mvarApp? := some mvarApp
+          break
+      | .ldecl i fv n t v b k =>
+        if let some mvarApp := getMVarApp? t then
+          mvarApp? := some mvarApp
+          break
+        if let some mvarApp := getMVarApp? v then
+          mvarApp? := some mvarApp
+          break
+  if mvarApp?.isNone then
+    mvarApp? := getMVarApp? target
+
+  let some mvarApp := mvarApp? | throwError "no instance of `{Expr.mvar mvar} [{numHPs} args]` found in proof state"
+  let mvarAppArgs := mvarApp.getAppArgs
+
+  let newMvar ← mkFreshExprMVar (← inferType mvarApp)
+  let rep e :=
+    e.replace fun e =>
+      if e == mvarApp then
+        newMvar
+      else
+        none
+  let mut newCtx := (← getLCtx)
+  for decl in lctx do
+    unless ← tryReplace decl do continue
+    let newDecl : LocalDecl := match decl with
+      | .cdecl i fv n t b k =>
+        .cdecl i fv n (rep t) b k
+      | .ldecl i fv n t v b k =>
+        .ldecl i fv n (rep t) (rep v) b k
+    -- trace[Meta.debug] s!"DBG[39]: Aux.lean:185 {← ppExpr newDecl.type}"
+    newCtx := newCtx.modifyLocalDecl newDecl.fvarId fun _ => newDecl
+  let newTarget := rep target
+  let newGoal ← withLCtx' newCtx $ mkFreshExprMVar newTarget
+
+  pushGoal newGoal.mvarId!
+  Tactic.focus do
+    evalTactic tac
+    while (← getGoals).length > 0 do
+      discard popMainGoal
+
+  unless (← newMvar.mvarId!.isAssigned) do throwError "failed to assign `{mvar}` through unification"
+  forallBoundedTelescope (← mvar.getType) numHPs fun vs _ => do
+    let assignment ← instantiateMVars newMvar
+    let mut absAssignment := assignment
+    for (arg, fvar) in mvarAppArgs.zip vs do
+      absAssignment := absAssignment.replace fun e =>
+        if e == arg then
+          fvar
+        else none
+    let val ← mkLambdaFVars vs absAssignment
+    try
+      mvar.assign val
+    catch _ =>
+      throwError  "assignment `{mvar} := {← ppExpr val}` failed (from application {mvarAppArgs})"
+  evalTactic tac
