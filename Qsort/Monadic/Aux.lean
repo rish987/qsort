@@ -194,10 +194,15 @@ abbrev HP : Sort u → Sort u := id
   let mvarAppArgs := mvarApp.getAppArgs
 
   let newMvar ← mkFreshExprMVar (← inferType mvarApp)
+  let newMvarLam ← forallBoundedTelescope (← mvar.getType) numHPs fun vs _ => do
+    mkLambdaFVars vs newMvar
   let rep e :=
     e.replace fun e =>
-      if e == mvarApp then
-        newMvar
+      if let .mvar id .. := e then
+        if id == mvar then
+          newMvarLam
+        else
+          none
       else
         none
   let mut newCtx := (← getLCtx)
