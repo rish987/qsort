@@ -210,11 +210,6 @@ theorem qpartition_sorted (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_tran
   unfold qpartition
   mvcgen
 
-  -- FIXME FIXME why?
-  case hle => assumption
-  case hlo => assumption
-  case hhi => assumption
-
   case inv =>
     exact PostCond.total fun (⟨⟨i, j⟩, _⟩, sp) =>
       SPred.and -- FIXME want to use ∧ notation instead
