@@ -10,7 +10,7 @@ open List
 
 namespace Monadic.Qpartition
 
-@[inline] def qpartition (x1 x2 x3 x4 x5 x6 x7 x8 x9 : HP Nat → HP Nat → Nat)
+@[inline] def qpartition (x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 : HP Nat → HP Nat → Nat)
     (lt : α → α → Bool) (lo hi : Fin n) (hle : lo ≤ hi) :
     StateM (ST α n) $ {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
   qpartition_prep lt lo hi
@@ -22,7 +22,7 @@ namespace Monadic.Qpartition
     -- FIXME need assertions in place of `sorry`s
     let xs := (← get).xs -- FIXME
     if lt (xs.get ⟨x1 i j, sorry⟩) (xs.get ⟨x2 i j, sorry⟩) then
-      mxs fun xs => xs.swap (x9 i j) j sorry sorry
+      mxs fun xs => xs.swap (x9 i j) (x10 i j) sorry sorry
       i := x5 i j
       j := x6 i j
     else
@@ -40,9 +40,9 @@ theorem sorted
    (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
    (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi)
    :
-   ∃ x1 x2 x3 x4 x5 x6 x7 x8 x9,
+   ∃ x1 x2 x3 x4 x5 x6 x7 x8 x9 x10,
    ⦃⌜#gxs = xs⌝⦄
-   qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 lt lo hi hle
+   qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 lt lo hi hle
    ⦃⇓ pivot => ⌜
      (∀ (i : Nat) (h : i < n), i < pivot.1 → i ≥ lo → ¬lt ((#gxs).get ⟨pivot.1, by omega⟩) ((#gxs).get ⟨i, h⟩)) ∧
      (∀ (i : Nat) (h : i < n), i > pivot.1 → i ≤ hi → ¬lt ((#gxs).get ⟨i, h⟩) ((#gxs).get ⟨pivot.1, by omega⟩)) ∧
@@ -60,6 +60,7 @@ theorem sorted
   exists? mvar7
   exists? mvar8
   exists? mvar9
+  exists? mvar10
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
   mvcgen [qpartition_prep.stable]
@@ -80,6 +81,7 @@ theorem sorted
       )))
 
   . mvcgen_aux -- FIXME automate
+    rename_i h
 
     rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
 
@@ -94,27 +96,38 @@ theorem sorted
     and_intros
     omegas
     apply pred_range_extend
-    rotate_left
-    . inst mvar5 apply pred_range_single
-      intros
-      inst mvar9 rewrite (occs := .pos [2]) [Vector.swap.get_left]
-      rw [Vector.swap.get_other]
-      apply le_asymm
-      omegas
-      inst mvar1 inst mvar2 assumption
-      sorry
-    . intros x
-      intros
-      rw [Vector.swap.get_other]
-      rw [Vector.swap.get_other]
-      apply hl
-      omegas
+
+    intros x
+    intros
+    rw [Vector.swap.get_other]
+    rw [Vector.swap.get_other]
+    apply hl
+    assumption
+    assumption
+    apply ne_of_lt
+    nthassumption mvar9 2
+    rotate_left 5 -- FIXME tactic to collectively defer all remaining goals in a .focus block not solved by `omega`
+
+    inst mvar5 apply pred_range_single
+    intros
+    rw [Vector.swap.get_left]
+    rw [Vector.swap.get_other]
+    apply le_asymm
+    omegas
+    inst mvar1 inst mvar2 assumption
+    rotate_left 3 -- FIXME
+
     apply pred_range_extend
     intros x
     intros
     . rw [Vector.swap.get_other]
       rw [Vector.swap.get_other]
+      omegas
       apply hr
+      omegas
+      rotate_left 2
+      apply ne_of_lt
+      nthassumption mvar10 2
       omegas
     . inst mvar6 apply pred_range_single
       intros
@@ -128,6 +141,7 @@ theorem sorted
       omegas
 
   . mvcgen_aux -- FIXME automate
+    rename_i h
 
     rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
 
@@ -154,6 +168,7 @@ theorem sorted
   omegas
 
   case success.pre1 =>
+    rename_i h
     next h' _ _ =>
     rw [h'] at h -- FIXME should have been automated
 
@@ -167,6 +182,7 @@ theorem sorted
 
 
   . mvcgen_aux
+    rename_i h
 
     -- FIXME FIXME these simplifications are related to the use of `Specs.forin_range`, and should be automatically applied whenever that spec is used
     simp only [List.length_reverse, List.length_range'] at h

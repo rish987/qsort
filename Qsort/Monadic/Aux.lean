@@ -127,12 +127,12 @@ def evalApplyLikeTactic (tac : MVarId → Expr → MetaM (List MVarId)) (e : Exp
 
 syntax (name := inst) "inst" ident tacticSeq : tactic
 
+syntax (name := inst') "inst'" ident tacticSeq : tactic
+
 -- marker for "hole parameters"
 abbrev HP : Sort u → Sort u := id
 
-@[tactic inst] def evalInst : Tactic := fun stx => withMainContext $ Tactic.focus do
-  let id : Name := (TSyntax.mk stx[1]).getId
-  let tac   := stx[2]
+ def runInst (id : Name) (tac : TacticM Unit) (rerun : Bool): TacticM Unit := withMainContext $ Tactic.focus do
   let mctx := ← getMCtx
   let some mvar := mctx.findUserName? id | throwError "could not find '{id}' in metavariable context"
   let rec countHPs (e : Expr) (n : Nat) := do
@@ -218,15 +218,18 @@ abbrev HP : Sort u → Sort u := id
   let newTarget := rep target
   let newGoal ← withLCtx' newCtx $ mkFreshExprMVar newTarget
 
+  let state ← saveState
   pushGoal newGoal.mvarId!
   Tactic.focus do
-    evalTactic tac
+    tac
     while (← getGoals).length > 0 do
       discard popMainGoal
 
   unless (← newMvar.mvarId!.isAssigned) do throwError "failed to assign `{mvar}` through unification"
+  let assignment ← instantiateMVars newMvar
+  state.restore
+
   forallBoundedTelescope (← mvar.getType) numHPs fun vs _ => do
-    let assignment ← instantiateMVars newMvar
     let mut absAssignment := assignment
     for (arg, fvar) in mvarAppArgs.zip vs do
       absAssignment := absAssignment.replace fun e =>
@@ -238,4 +241,51 @@ abbrev HP : Sort u → Sort u := id
       mvar.assign val
     catch _ =>
       throwError  "assignment `{mvar} := {← ppExpr val}` failed (from application {mvarAppArgs})"
-  evalTactic tac
+  if rerun then
+    tac
+
+@[tactic inst] def evalInst : Tactic := fun stx => withMainContext $ Tactic.focus do
+  let id : Name := (TSyntax.mk stx[1]).getId
+  let tac   := stx[2]
+  runInst id (evalTactic tac) true
+
+@[tactic inst'] def evalInst' : Tactic := fun stx => withMainContext $ Tactic.focus do
+  let id : Name := (TSyntax.mk stx[1]).getId
+  let tac   := stx[2]
+  runInst id (evalTactic tac) false
+
+/-- Return the `n`th local declaration whose type is definitionally equal to `type`. -/
+def findNthLocalDeclWithType? (type : Expr) (n : Nat) : StateRefT Nat MetaM (Option FVarId) := do
+  (← getLCtx).findDeclRevM? fun localDecl => do
+    if localDecl.isImplementationDetail then
+      return none
+    else
+      let state ← saveState
+      if (← isDefEq type localDecl.type) then
+        if (← get) == n then
+          trace[Meta.debug] s!"success"
+          return some localDecl.fvarId
+        state.restore
+        modify fun n => n + 1
+        return none
+      return none
+
+def _root_.Lean.MVarId.nthassumptionCore (mvarId : MVarId) (n : Nat) : MetaM Bool :=
+  mvarId.withContext do
+    mvarId.checkNotAssigned `nthassumption
+    match (← findNthLocalDeclWithType? (← mvarId.getType) n |>.run 1).1 with
+    | none => return false
+    | some fvarId => mvarId.assign (mkFVar fvarId); return true
+
+def _root_.Lean.MVarId.nthassumption (mvarId : MVarId) (n : Nat) : MetaM Unit :=
+  unless (← mvarId.nthassumptionCore n) do
+    throwTacticEx `nthassumption mvarId
+
+syntax (name := nthassumption) "nthassumption" ident num : tactic
+
+@[tactic nthassumption] def evalNthAssumption : Tactic := fun stx => do
+  let id := (TSyntax.mk stx[1]).getId
+  let n := (TSyntax.mk stx[2]).getNat
+  let tac := liftMetaTactic fun mvarId => withAssignableSyntheticOpaque do mvarId.nthassumption n; pure []
+  runInst id tac false
+  liftMetaTactic fun mvarId => withAssignableSyntheticOpaque do mvarId.assumption; pure []

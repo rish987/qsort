@@ -64,6 +64,7 @@ theorem sorted
       )))
 
   . mvcgen_aux -- FIXME automate
+    rename_i h
 
     rcases h with ⟨hj, _, hl, hr, _⟩ -- FIXME
 
@@ -108,6 +109,7 @@ theorem sorted
       omegas
 
   . mvcgen_aux -- FIXME automate
+    rename_i h
 
     rcases h with ⟨hj, _, hl, hr, _⟩
 
@@ -133,6 +135,7 @@ theorem sorted
   omegas
 
   case success.pre1 =>
+    rename_i h
     next h' _ _ =>
     rw [h'] at h -- FIXME should have been automated
 
@@ -146,6 +149,7 @@ theorem sorted
 
 
   . mvcgen_aux
+    rename_i h
 
     -- FIXME FIXME these simplifications are related to the use of `Specs.forin_range`, and should be automatically applied whenever that spec is used
     simp only [List.length_reverse, List.length_range'] at h
