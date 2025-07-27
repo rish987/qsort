@@ -10,7 +10,7 @@ open List
 
 namespace Monadic.Qpartition
 
-@[inline] def qpartition (x1 x2 x3 x4 x5 x6 x7 x8 : HP Nat → HP Nat → Nat)
+@[inline] def qpartition (x1 x2 x3 x4 x5 x6 x7 x8 x9 : HP Nat → HP Nat → Nat)
     (lt : α → α → Bool) (lo hi : Fin n) (hle : lo ≤ hi) :
     StateM (ST α n) $ {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
   qpartition_prep lt lo hi
@@ -22,7 +22,7 @@ namespace Monadic.Qpartition
     -- FIXME need assertions in place of `sorry`s
     let xs := (← get).xs -- FIXME
     if lt (xs.get ⟨x1 i j, sorry⟩) (xs.get ⟨x2 i j, sorry⟩) then
-      mxs fun xs => xs.swap i j sorry sorry
+      mxs fun xs => xs.swap (x9 i j) j sorry sorry
       i := x5 i j
       j := x6 i j
     else
@@ -31,9 +31,7 @@ namespace Monadic.Qpartition
   mxs fun xs => xs.swap (x3 i j) (x4 i j) sorry sorry
   pure ⟨i, sorry, sorry⟩
 
-variable {lt : α → α → Bool} (lt_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
-
--- attribute [sort] Fin.getElem_fin Array.length_toList Array.size_swap List.append_left_inj List.append_right_inj List.length_cons
+variable {lt : α → α → Bool} 
 
 namespace qpartition
 
@@ -42,9 +40,9 @@ theorem sorted
    (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
    (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi)
    :
-   ∃ x1 x2 x3 x4 x5 x6 x7 x8,
+   ∃ x1 x2 x3 x4 x5 x6 x7 x8 x9,
    ⦃⌜#gxs = xs⌝⦄
-   qpartition x1 x2 x3 x4 x5 x6 x7 x8 lt lo hi hle
+   qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 lt lo hi hle
    ⦃⇓ pivot => ⌜
      (∀ (i : Nat) (h : i < n), i < pivot.1 → i ≥ lo → ¬lt ((#gxs).get ⟨pivot.1, by omega⟩) ((#gxs).get ⟨i, h⟩)) ∧
      (∀ (i : Nat) (h : i < n), i > pivot.1 → i ≤ hi → ¬lt ((#gxs).get ⟨i, h⟩) ((#gxs).get ⟨pivot.1, by omega⟩)) ∧
@@ -61,6 +59,7 @@ theorem sorted
   exists? mvar6
   exists? mvar7
   exists? mvar8
+  exists? mvar9
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
   mvcgen [qpartition_prep.stable]
@@ -95,19 +94,21 @@ theorem sorted
     and_intros
     omegas
     apply pred_range_extend
-    intros x
-    intros
-    . rw [Vector.swap.get_other]
-      rw [Vector.swap.get_other]
-      apply hl
-      omegas
+    rotate_left
     . inst mvar5 apply pred_range_single
       intros
-      rw [Vector.swap.get_left]
+      inst mvar9 rewrite (occs := .pos [2]) [Vector.swap.get_left]
       rw [Vector.swap.get_other]
       apply le_asymm
       omegas
       inst mvar1 inst mvar2 assumption
+      sorry
+    . intros x
+      intros
+      rw [Vector.swap.get_other]
+      rw [Vector.swap.get_other]
+      apply hl
+      omegas
     apply pred_range_extend
     intros x
     intros

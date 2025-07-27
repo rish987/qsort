@@ -30,7 +30,7 @@ namespace Monadic.Qpartition
   mxs fun xs => xs.swap i hi sorry sorry
   pure ⟨i, sorry, sorry⟩
 
-variable {lt : α → α → Bool} (lt_asymm : ∀ {{a b}}, lt a b → ¬lt b a) (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
+variable {lt : α → α → Bool}
 
 namespace qpartition
 theorem sorted 
