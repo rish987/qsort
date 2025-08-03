@@ -11,17 +11,17 @@ open List
 namespace Monadic.Qpartition
 
 @[inline] def qpartition (x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 : HP Nat → HP Nat → Nat)
-    (lt : α → α → Bool) (lo hi : Fin n) (hle : lo ≤ hi) :
+    (lt : α → α → Bool) (lo hi : Nat) (hlo : lo < n) (hhi: hi < n) (hle : lo ≤ hi) :
     StateM (ST α n) $ {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
-  qpartition_prep lt lo hi
-  let pivot := (← get).xs.get hi
+  qpartition_prep lt lo hi hlo hhi
+  let pivot := (← get).xs.get hi hhi
   let mut i : Nat := lo
   let mut j : Nat := lo
   -- let mut inv : {t : Nat × Nat // lo ≤ t.1 ∧ t.1 ≤ hi ∧ t.1 ≤ t.2} := ⟨(lo, lo), by omega, by omega⟩
   for _ in [lo:hi] do
     -- FIXME need assertions in place of `sorry`s
     let xs := (← get).xs -- FIXME
-    if lt (xs.get ⟨x1 i j, sorry⟩) (xs.get ⟨x2 i j, sorry⟩) then
+    if lt (xs.get (x1 i j) sorry) (xs.get (x2 i j) sorry) then
       mxs fun xs => xs.swap (x9 i j) (x10 i j) sorry sorry
       i := x5 i j
       j := x6 i j
@@ -38,15 +38,15 @@ namespace qpartition
 theorem sorted 
    (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a)
    (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
-   (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi)
+   (lo hi : Nat) (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi)
    :
    ∃ x1 x2 x3 x4 x5 x6 x7 x8 x9 x10,
    ⦃⌜#gxs = xs⌝⦄
-   qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 lt lo hi hle
+   qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 lt lo hi hlo hhi hle
    ⦃⇓ pivot => ⌜
-     (∀ (i : Nat) (h : i < n), i < pivot.1 → i ≥ lo → ¬lt ((#gxs).get ⟨pivot.1, by omega⟩) ((#gxs).get ⟨i, h⟩)) ∧
-     (∀ (i : Nat) (h : i < n), i > pivot.1 → i ≤ hi → ¬lt ((#gxs).get ⟨i, h⟩) ((#gxs).get ⟨pivot.1, by omega⟩)) ∧
-     Stable #gxs xs lo hi 
+     (∀ (x : Nat), lo ≤ x → x < pivot.1 → (h : x < n) → ¬lt ((#gxs).get pivot.1 (by omega)) ((#gxs).get x h)) ∧
+     (∀ (x : Nat), pivot.1 < x → x ≤ hi → (h : x < n) → ¬lt ((#gxs).get x h) ((#gxs).get pivot.1 (by omega))) ∧
+     Stable #gxs xs lo hi hlo hhi
    ⌝⦄ := by
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   -- apply Exists.intro y
@@ -70,14 +70,14 @@ theorem sorted
   case inv =>
     exact PostCond.total fun (⟨i, j⟩, sp) =>
       SPred.and -- FIXME want to use ∧ notation instead
-      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → ¬ lt ((#gxs).get hi) ((#gxs).get ⟨x, hx⟩))⌝
+      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → ¬ lt ((#gxs).get hi hhi) ((#gxs).get x hx))⌝
       (SPred.and
-      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → ¬ lt ((#gxs).get ⟨x, hx⟩) ((#gxs).get hi))⌝
+      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → ¬ lt ((#gxs).get x hx) ((#gxs).get hi hhi))⌝
       (SPred.and
       (⌜j = lo + sp.rpref.length⌝) -- FIXME can we individually label these with names for use with `mcases`?
       (SPred.and
       (⌜lo ≤ i ∧ j ≤ hi ∧ i ≤ j⌝)
-      ⌜Stable #gxs xs lo hi ⌝
+      ⌜Stable #gxs xs lo hi hlo hhi⌝
       )))
 
   . mvcgen_aux -- FIXME automate
@@ -114,7 +114,9 @@ theorem sorted
     rw [Vector.swap.get_other]
     apply le_asymm
     omegas
-    inst mvar1 inst mvar2 assumption
+    inst mvar1 inst mvar2
+      simp only at * -- FIXME
+      assumption
     rotate_left 3 -- FIXME
 
     apply pred_range_extend
@@ -182,14 +184,14 @@ theorem sorted
 
 
   . mvcgen_aux
-    rename_i h
+    rename_i r _ h
 
     -- FIXME FIXME these simplifications are related to the use of `Specs.forin_range`, and should be automatically applied whenever that spec is used
     simp only [List.length_reverse, List.length_range'] at h
     simp only [Nat.add_one_sub_one, Nat.div_one] at h
 
-    rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
-
+    rcases h with ⟨hl, hr, -, _,  _⟩ -- FIXME
+    
     and_intros
     . intros
       inst mvar3 rw [Vector.swap.get_left]
@@ -199,6 +201,7 @@ theorem sorted
 
     intros x _ _ _ -- FIXME
     rw [Vector.swap.get_left]
+    have hj : r.snd = hi := by sorry -- FIXME
     ite x rw [Vector.swap.get_right]
     apply hr
     omegas

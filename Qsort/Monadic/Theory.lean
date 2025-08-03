@@ -13,7 +13,7 @@ variable {α : Type} {n : Nat}
 
 abbrev Vector (α n) := {xs : Array α // xs.size = n}
 
-def Vector.get (xs : Vector α n) (i : Fin n) := xs.1[Fin.mk (i : Nat) (i.cast xs.2.symm).2]
+def Vector.get (xs : Vector α n) (i : Nat) (hi : i < n) := xs.1[i]'(by omega)
 
 def Vector.toList (xs : Vector α n) : List α := xs.1.toList
 
@@ -45,7 +45,7 @@ theorem mxs_triple
   unfold mxs
   mvcgen
 
-def Stable (as bs : Vector α n) (lo hi : Fin n) : Prop :=
+def Stable (as bs : Vector α n) (lo hi : Nat) (hlo : lo < n := by omega) (hhi : hi < n := by omega) : Prop :=
      ∀ i, i < lo → as.get i = bs.get i ∧
      ∀ i, i > hi → as.get i = bs.get i
 
@@ -78,63 +78,63 @@ namespace Vector
 namespace swap
 variable (i j : Nat) 
 
-theorem stable {as bs : Vector α n} {hi lo : Fin n} (h : Stable as bs lo hi)
+theorem stable {as bs : Vector α n} {lo hi : Nat} (hlo : lo < n) (hhi : hi < n) (h : Stable as bs lo hi)
    (hilo : i ≥ lo) (hihi : i ≤ hi) (hjlo : j ≥ lo) (hjhi : j ≤ hi)
    : Stable (as.swap i j) bs lo hi := by
   sorry
 
 theorem get_left {xs : Vector α n} {i j : Nat} (hi : i < n) (hj : j < n) :
-   (xs.swap i j hi hj).get ⟨i, hi⟩ = xs.get ⟨j, hj⟩ := by
+   (xs.swap i j hi hj).get i hi = xs.get j hj := by
   sorry
 
 theorem get_right {xs : Vector α n} {i j : Nat} (hi : i < n) (hj : j < n) :
-   (xs.swap i j hi hj).get ⟨j, hj⟩ = xs.get ⟨i, hi⟩ := by
+   (xs.swap i j hi hj).get j hj = xs.get i hi := by
   sorry
 
 theorem get_other {xs : Vector α n} {i j : Nat} (k : Nat)
    (hi : i < n) (hj : j < n) (hk : k < n)
    (hi' : k ≠ i) (hj' : k ≠ j) :
-   (xs.swap i j hi hj).get ⟨k, hk⟩ = xs.get ⟨k, hk⟩ := by
+   (xs.swap i j hi hj).get k hk = xs.get k hk := by
   sorry
 
 end swap
 end Vector
 
-def qpartition_maybeSwap (lt : α → α → Bool) (lo hi : Fin n) : StateM (ST α n) Unit := do
-  if lt ((← get).xs.get hi) ((← get).xs.get lo) then
+def qpartition_maybeSwap (lt : α → α → Bool) (lo hi : Nat) (hlo : lo < n) (hhi: hi < n) : StateM (ST α n) Unit := do
+  if lt ((← get).xs.get hi hhi) ((← get).xs.get lo hlo) then
     mxs fun xs => xs.swap lo hi
 
 def qpartition_prep
-    (lt : α → α → Bool) (lo hi : Fin n) :
+    (lt : α → α → Bool) (lo hi : Nat) (hlo : lo < n) (hhi: hi < n):
     StateM (ST α n) Unit := do
-  let mid : Fin n := ⟨(lo.1 + hi) / 2, by omega⟩
-  qpartition_maybeSwap lt lo mid
-  qpartition_maybeSwap lt lo hi
-  qpartition_maybeSwap lt hi mid
+  let mid : Fin n := ⟨(lo + hi) / 2, by omega⟩
+  qpartition_maybeSwap lt lo mid hlo mid.2
+  qpartition_maybeSwap lt lo hi hlo hhi
+  qpartition_maybeSwap lt hi mid hhi mid.2
 
-theorem qpartition_maybeSwap_perm {lo : Fin n} {hi : Fin n} (hle : lo ≤ hi := by omega) :
+theorem qpartition_maybeSwap_perm {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi := by omega) :
    ⦃⌜#gxs = xs⌝⦄
-   qpartition_maybeSwap lt lo hi
-   ⦃⇓ pivot => ⌜Stable #gxs xs lo hi ∧ (#gxs).1.Perm xs.1⌝⦄ := by
+   qpartition_maybeSwap lt lo hi hlo hhi
+   ⦃⇓ pivot => ⌜Stable #gxs xs lo hi hlo hhi ∧ (#gxs).1.Perm xs.1⌝⦄ := by
   sorry
 
 namespace qpartition_prep
-theorem nil {lo : Fin n} {hi : Fin n} (hle : lo ≤ hi := by omega) :
+theorem nil {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega)(hle : lo ≤ hi := by omega) :
    ⦃⌜True⌝⦄
-   qpartition_prep lt lo hi
+   qpartition_prep lt lo hi hlo hhi
    ⦃⇓ _ => ⌜True⌝⦄ := by
   sorry
 
-theorem stable {lo : Fin n} {hi : Fin n} (hle : lo ≤ hi := by omega) :
+theorem stable {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi := by omega) :
    ⦃⌜#gxs = xs⌝⦄
-   qpartition_prep lt lo hi
-   ⦃⇓ pivot => ⌜Stable #gxs xs lo hi⌝⦄ := by
+   qpartition_prep lt lo hi hlo hhi
+   ⦃⇓ pivot => ⌜Stable #gxs xs lo hi hlo hhi⌝⦄ := by
   sorry
 
 -- @[spec]
-theorem perm {lo : Fin n} {hi : Fin n} (hle : lo ≤ hi := by omega) :
+theorem perm {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi := by omega) :
    ⦃⌜#gxs = xs⌝⦄
-   qpartition_prep lt lo hi
+   qpartition_prep lt lo hi hlo hhi
    ⦃⇓ pivot => ⌜(#gxs).1.Perm xs.1⌝⦄ := by
   sorry
 end qpartition_prep
