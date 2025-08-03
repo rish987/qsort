@@ -10,7 +10,7 @@ open List
 
 namespace Monadic.Qpartition
 
-@[inline] def qpartition (x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 : HP Nat → HP Nat → Nat)
+@[inline] def qpartition (x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 : HP Nat → HP Nat → Nat)
     (lt : α → α → Bool) (lo hi : Nat) (hlo : lo < n) (hhi: hi < n) (hle : lo ≤ hi) :
     StateM (ST α n) $ {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
   qpartition_prep lt lo hi hlo hhi
@@ -18,7 +18,7 @@ namespace Monadic.Qpartition
   let mut i : Nat := lo
   let mut j : Nat := lo
   -- let mut inv : {t : Nat × Nat // lo ≤ t.1 ∧ t.1 ≤ hi ∧ t.1 ≤ t.2} := ⟨(lo, lo), by omega, by omega⟩
-  for _ in [lo:hi] do
+  for _ in [lo:x11 i j] do
     -- FIXME need assertions in place of `sorry`s
     let xs := (← get).xs -- FIXME
     if lt (xs.get (x1 i j) sorry) (xs.get (x2 i j) sorry) then
@@ -40,9 +40,9 @@ theorem sorted
    (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
    (lo hi : Nat) (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi)
    :
-   ∃ x1 x2 x3 x4 x5 x6 x7 x8 x9 x10,
+   ∃ x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12,
    ⦃⌜#gxs = xs⌝⦄
-   qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 lt lo hi hlo hhi hle
+   qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 lt lo hi hlo hhi hle
    ⦃⇓ pivot => ⌜
      (∀ (x : Nat), lo ≤ x → x < pivot.1 → (h : x < n) → ¬lt ((#gxs).get pivot.1 (by omega)) ((#gxs).get x h)) ∧
      (∀ (x : Nat), pivot.1 < x → x ≤ hi → (h : x < n) → ¬lt ((#gxs).get x h) ((#gxs).get pivot.1 (by omega))) ∧
@@ -61,6 +61,12 @@ theorem sorted
   exists? mvar8
   exists? mvar9
   exists? mvar10
+  exists? mvar11
+  exists default
+
+  mvar mvar01 : HP Nat → HP Nat → HP Nat -- loop invariant mvars
+  mvar mvar02 : HP Nat → HP Nat → HP Nat
+
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
   mvcgen [qpartition_prep.stable]
@@ -68,17 +74,83 @@ theorem sorted
   omegas
 
   case inv =>
-    exact PostCond.total fun (⟨i, j⟩, sp) =>
+    exact PostCond.total fun t =>
+      let ⟨i, j⟩ := t.1
+      let sp := t.2
       SPred.and -- FIXME want to use ∧ notation instead
-      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → ¬ lt ((#gxs).get hi hhi) ((#gxs).get x hx))⌝
+      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → ¬ lt ((#gxs).get (?mvar01 i j) sorry) ((#gxs).get x hx))⌝
       (SPred.and
-      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → ¬ lt ((#gxs).get x hx) ((#gxs).get hi hhi))⌝
+      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → ¬ lt ((#gxs).get x hx) ((#gxs).get (?mvar02 i j) sorry))⌝
       (SPred.and
       (⌜j = lo + sp.rpref.length⌝) -- FIXME can we individually label these with names for use with `mcases`?
       (SPred.and
       (⌜lo ≤ i ∧ j ≤ hi ∧ i ≤ j⌝)
       ⌜Stable #gxs xs lo hi hlo hhi⌝
       )))
+
+  case post.success.post.success =>
+    mvcgen_aux
+    rename_i r _ h
+
+    -- FIXME FIXME these simplifications are related to the use of `Specs.forin_range`, and should be automatically applied whenever that spec is used
+    simp only [List.length_reverse, List.length_range'] at h
+    simp only [Nat.add_one_sub_one, Nat.div_one] at h
+
+    rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
+    rcases r with ⟨i, j⟩
+    simp only at * -- FIXME
+    
+    and_intros
+    intros
+    inst mvar3 rw [Vector.swap.get_left]
+    rw [Vector.swap.get_other]
+    inst mvar4
+      try simp only -- FIXME
+      apply hl
+    omega
+    omega
+    omega
+    rotate_left
+
+    intros x _ _ _ -- FIXME
+    rw [Vector.swap.get_left]
+    ite x rw [Vector.swap.get_right]
+    inst mvar02
+      try simp only at hr -- FIXME
+      apply hr
+    omega
+    rotate_left 2
+    . intros
+      rw [Vector.swap.get_other]
+      apply hr
+      omega
+      -- rw [hj]
+      ite j 
+        apply lt_of_ne
+        assumption
+        apply ne_symm
+        inst mvar01 assumption
+        -- omega
+        -- omega
+      . false_or_by_contra -- FIXME write an ite_force tactic that does these steps automatically
+        apply h
+
+        apply eq_comm
+        apply eq_trans
+        exact hj
+        inst mvar11 apply add_sub
+        assumption
+      omega
+      omega
+    rotate_right
+    have hj' : j = hi := by omega -- FIXME
+    rw [hj']
+    assumption
+
+    . apply Vector.swap.stable
+      omegas
+
+    omega
 
   . mvcgen_aux -- FIXME automate
     rename_i h
@@ -181,37 +253,6 @@ theorem sorted
 
     and_intros
     omegas
-
-
-  . mvcgen_aux
-    rename_i r _ h
-
-    -- FIXME FIXME these simplifications are related to the use of `Specs.forin_range`, and should be automatically applied whenever that spec is used
-    simp only [List.length_reverse, List.length_range'] at h
-    simp only [Nat.add_one_sub_one, Nat.div_one] at h
-
-    rcases h with ⟨hl, hr, -, _,  _⟩ -- FIXME
-    
-    and_intros
-    . intros
-      inst mvar3 rw [Vector.swap.get_left]
-      rw [Vector.swap.get_other]
-      inst mvar4 apply hl
-      omegas
-
-    intros x _ _ _ -- FIXME
-    rw [Vector.swap.get_left]
-    have hj : r.snd = hi := by sorry -- FIXME
-    ite x rw [Vector.swap.get_right]
-    apply hr
-    omegas
-    . intros
-      . rw [Vector.swap.get_other]
-        apply hr
-        omegas
-
-    . apply Vector.swap.stable
-      omegas
 
 
 -- theorem perm {lo : Fin n} {hi : Fin n} (hle : lo ≤ hi := by omega) :

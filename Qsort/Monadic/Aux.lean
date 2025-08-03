@@ -11,6 +11,7 @@ open Lean.Meta
 open Lean.Elab
 open Lean.Elab.Tactic
 open Lean.Parser.Tactic
+open Lean.Parser.Term
 
 open Std.Do
 
@@ -124,6 +125,14 @@ def evalApplyLikeTactic (tac : MVarId → Expr → MetaM (List MVarId)) (e : Exp
     modify fun s => { goals := s.goals.filter (· != newMvar.mvarId!)}
   else
     throwError "expected Exists application in goal, got {indentExpr target}"
+
+syntax (name := mkMVar) "mvar" ident typeSpec : tactic
+
+@[tactic mkMVar] def evalMkMvar : Tactic := fun stx => do
+  let id : Name := (TSyntax.mk stx[1]).getId
+  let typStx : Syntax := (stx[2][1])
+  let type ← elabTerm typStx none -- | throwError "failed to elaborate mvar type: {typStx}"
+  let newMvar ← mkFreshExprMVar type (userName := id)
 
 syntax (name := inst) "inst" ident tacticSeq : tactic
 

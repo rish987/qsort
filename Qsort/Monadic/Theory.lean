@@ -73,6 +73,12 @@ theorem pred_range_extend {P : Nat → Prop} (lo mid hi : Nat)
 
 theorem ne_of_lt (i j : Nat) (h : i < j) : ¬ i = j := by sorry
 
+theorem lt_of_ne (i j : Nat) (h1 : i ≤ j) (h2 : ¬ i = j) : i < j := by sorry
+theorem ne_symm (i j : Nat) (h : ¬ i = j) : ¬ j = i := by sorry
+theorem eq_trans (i j k : Nat) (h1 : i = j) (h2 : j = k) : i = k := by sorry
+theorem eq_comm (i j : Nat) (h : i = j) : j = i := by sorry
+theorem add_sub (i j : Nat) (h : i ≤ j) : i + (j - i) = j := by sorry
+
 namespace Vector
 
 namespace swap
