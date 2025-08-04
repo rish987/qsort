@@ -11,9 +11,9 @@ open List
 namespace Monadic.Qpartition
 
 @[inline] def qpartition
-    (lt : α → α → Bool) (lo hi : Fin n) (hle : lo ≤ hi) :
+    (lt : α → α → Bool) (lo hi : Nat) (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi) :
     StateM (ST α n) $ {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
-  qpartition_prep lt lo hi
+  qpartition_prep lt lo hi hlo hhi
   let pivot := (← get).xs.get hi
   let mut i : Nat := lo
   let mut j : Nat := lo
@@ -21,7 +21,7 @@ namespace Monadic.Qpartition
   for _ in [lo:hi] do
     -- FIXME need assertions in place of `sorry`s
     let xs := (← get).xs -- FIXME
-    if lt (xs.get ⟨j, sorry⟩) (xs.get ⟨hi, sorry⟩) then
+    if lt (xs.get j sorry) (xs.get hi sorry) then
       mxs fun xs => xs.swap i j sorry sorry
       i := i + 1
       j := j + 1
@@ -36,14 +36,14 @@ namespace qpartition
 theorem sorted 
    (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a)
    (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
-   (lo : Fin n) (hi : Fin n) (hle : lo ≤ hi)
+   (lo hi : Nat) (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi)
    :
    ⦃⌜#gxs = xs⌝⦄
-   qpartition lt lo hi hle
+   qpartition lt lo hi hlo hhi hle
    ⦃⇓ pivot => ⌜
      Stable #gxs xs lo hi ∧
-     (∀ (i : Nat) (h : i < n), i < pivot.1 → i ≥ lo → ¬lt ((#gxs).get ⟨pivot.1, by omega⟩) ((#gxs).get ⟨i, h⟩)) ∧
-     (∀ (i : Nat) (h : i < n), i > pivot.1 → i ≤ hi → ¬lt ((#gxs).get ⟨i, h⟩) ((#gxs).get ⟨pivot.1, by omega⟩))⌝⦄ := by
+     (∀ (i : Nat) (h : i < n), i < pivot.1 → i ≥ lo → ¬lt ((#gxs).get pivot.1 (by omega)) ((#gxs).get i h)) ∧
+     (∀ (i : Nat) (h : i < n), i > pivot.1 → i ≤ hi → ¬lt ((#gxs).get i h) ((#gxs).get pivot.1 (by omega)))⌝⦄ := by
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
   mvcgen [qpartition_prep.stable]
@@ -57,9 +57,9 @@ theorem sorted
       (SPred.and
       (⌜lo ≤ i ∧ j ≤ hi ∧ i ≤ j⌝)
       (SPred.and
-      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → ¬ lt ((#gxs).get hi) ((#gxs).get ⟨x, hx⟩))⌝
+      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → ¬ lt ((#gxs).get hi hhi) ((#gxs).get x hx))⌝
       (SPred.and
-      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → ¬ lt ((#gxs).get ⟨x, hx⟩) ((#gxs).get hi))⌝
+      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → ¬ lt ((#gxs).get x hx) ((#gxs).get hi hhi))⌝
       ⌜Stable #gxs xs lo hi ⌝
       )))
 
@@ -178,9 +178,9 @@ theorem sorted
         apply hr
         omegas
 
-theorem perm {lo : Fin n} {hi : Fin n} (hle : lo ≤ hi := by omega) :
+theorem perm {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi := by omega) :
    ⦃⌜#gxs = xs⌝⦄
-   qpartition lt lo hi hle
+   qpartition lt lo hi hlo hhi hle
    ⦃⇓ pivot => ⌜Perm (#gxs) xs⌝⦄ := by
   sorry
 end qpartition

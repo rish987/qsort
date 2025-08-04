@@ -1,8 +1,105 @@
 import Std.Tactic.Do
+import Qsort.Monadic.Aux
 
 open Std.Do
 
 set_option mvcgen.warning false
+
+namespace Tactics
+
+/--
+Given an existential goal `∃ x : T, P x`, `exists? mvar` will
+create a new metavariable `?mvar : T` which is provided as the existential witness,
+leaving us with the goal `P ?mvar`.
+`?mvar` can then be assigned via unification during the proof.
+-/
+def f (x : Nat) : Id Nat := do
+  pure x
+
+theorem f_spec : 
+    ∃ x,
+   ⦃⌜True⌝⦄
+   f x
+   ⦃⇓ r => ⌜r = 0⌝⦄ := by
+  exists? mvar1
+  mintro -
+  unfold f
+  simp
+  rfl -- assigns `?mvar1 = 0`
+
+/--
+If `?mvar : HP U1 -> ... -> HP Un -> V`, `inst mvar tac` tries to intelligently assign
+`?mvar` based on the unification result of running `tac`. It works as follows:
+
+1. Any instances of `?mvar` replaced by the constant function `fun u1 ... un => ?newMvar`, for some fresh metavar `?newMvar`.
+2. The tactic `tac` is run. If `?newMvar` is assigned, continue, otherwise fail.
+3. The proof state is reverted to what it was before (1).
+4. We search for `?mvar` in the original proof state, finding an instance with `n` arguments `a1 ... an`.
+4. We abstract `a1 ... an` out of `t` to construct a lambda expression `f`.
+5. We assign `?mvar := f` and rerun `tac`.
+-/
+def g (x : HP Nat → Nat) (a : Nat) : Id Nat := do
+  pure (x a)
+
+theorem g_spec (a : Nat) :
+    ∃ x,
+   ⦃⌜a > 0⌝⦄
+   g x a
+   ⦃⇓ r => ⌜r > 0⌝⦄ := by
+  exists? mvar1
+  mvcgen [g]
+  mleave
+  inst mvar1 assumption -- assigns `?mvar1 = fun a => a`
+
+/--
+`nthassumption mvar n` behaves much like `inst mvar assumption`,
+except it uses the `n`th assumption that matches the current goal.
+
+This allows for selecting which particular assumption is used, which is useful
+when unification incurs a metavariable assignment.
+-/
+
+def g' (x : HP Nat → HP Nat → Nat) (a b : Nat) : Id Nat := do
+  pure (x a b)
+
+theorem g'_spec (a b : Nat) :
+    ∃ x,
+   ⦃⌜a > 0 ∧ b > 0 ∧ 5 > a⌝⦄
+   g' x a b
+   ⦃⇓ r => ⌜r > 0 ∧ 5 > r⌝⦄ := by
+  exists? mvar1
+  mvcgen [g']
+  rename_i h
+  rcases h with ⟨_, _, _⟩
+  mleave
+
+  -- Goal:
+  -- a b : Nat
+  -- a✝² : 0 < a
+  -- a✝¹ : 0 < b
+  -- a✝ : a < 5
+  -- ⊢ 0 < ?mvar1 a b ∧ ?mvar1 a b < 5
+
+  and_intros
+  nthassumption mvar1 2 -- assigns `?mvar1 = fun a b => a`
+  assumption
+
+/--
+`ite var tac` works as follows
+1. We replace `var` in the proof state with a fresh metavariable `?mvar`.
+2. `tac` is run in this new proof state, and we ensure that it succeeds
+   and assigns `?mvar := t`.
+3. We revert to the original proof state and create a `dite` branch with
+   the conditional `var = t`, creating two subgoals for the `then` and `else` cases.
+4. In the `then` branch with hypothesis `h : var = t`, we call `subst h` and
+   then run `tac` (again).
+
+This leaves us with two goals, one corresponding to the result of running `tac`
+where we assume `var = t` and substitute accordingly, and another where we assume `¬ var = t`.
+-/
+axiom nil : True
+
+end Tactics
 
 --- --- --- ---
 
@@ -270,45 +367,45 @@ theorem new_addPred_spec' :
 --   else
 --     pure sorry
 
-theorem setZero_spec :
-   ⦃⌜0 < 1⌝⦄
-   setZero
-   ⦃⇓ _ => ⌜1 < 2⌝⦄ := by
-  unfold setZero
-  mvcgen
-
-  case inv =>
-    exact ⇓ (i, sp) =>
-      ⌜(#gns).size = len⌝ ∧
-      ⌜i = sp.rpref.length⌝ ∧
-      ⌜i ≤ (#gns).size⌝
-
-  . mintro t
-    rename_i h
-    mvcgen
-    mleave
-    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h -- see #9363
-    grind
-
-  . mleave
-    rename_i h
-    simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h
-    rename_i _ _ h'
-    false_or_by_contra
-    apply h'
-
-    -- `mvcgen` should leave us here
-    rename_i hsp _ _
-    have hrng_dec_sz : (rpref.reverse ++ x :: suff).length = len := by
-      rw [← hsp]
-      simp
-    rw [List.length_append, List.length_reverse, List.length_cons] at hrng_dec_sz
-    omega
-
-  . mleave
-    rename_i h
-    simp
-    rfl
+-- theorem setZero_spec :
+--    ⦃⌜0 < 1⌝⦄
+--    setZero
+--    ⦃⇓ _ => ⌜1 < 2⌝⦄ := by
+--   unfold setZero
+--   mvcgen
+--
+--   case inv =>
+--     exact ⇓ (i, sp) =>
+--       ⌜(#gns).size = len⌝ ∧
+--       ⌜i = sp.rpref.length⌝ ∧
+--       ⌜i ≤ (#gns).size⌝
+--
+--   . mintro t
+--     rename_i h
+--     mvcgen
+--     mleave
+--     simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h -- see #9363
+--     grind
+--
+--   . mleave
+--     rename_i h
+--     simp only [SPred.and_cons, SVal.curry_cons, SVal.curry_nil, SVal.uncurry_cons, SVal.uncurry_nil, SPred.and_nil] at h
+--     rename_i _ _ h'
+--     false_or_by_contra
+--     apply h'
+--
+--     -- `mvcgen` should leave us here
+--     rename_i hsp _ _
+--     have hrng_dec_sz : (rpref.reverse ++ x :: suff).length = len := by
+--       rw [← hsp]
+--       simp
+--     rw [List.length_append, List.length_reverse, List.length_cons] at hrng_dec_sz
+--     omega
+--
+--   . mleave
+--     rename_i h
+--     simp
+--     rfl
 
 structure MyException where
 def F : EStateM MyException Unit Unit := do

@@ -10,15 +10,14 @@ open List
 
 namespace Monadic.Qpartition
 
-@[inline] def qpartition (x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 : HP Nat → HP Nat → Nat)
+@[inline] def qpartition (x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 : HP Nat → HP Nat → Nat)
     (lt : α → α → Bool) (lo hi : Nat) (hlo : lo < n) (hhi: hi < n) (hle : lo ≤ hi) :
     StateM (ST α n) $ {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
   qpartition_prep lt lo hi hlo hhi
   let pivot := (← get).xs.get hi hhi
   let mut i : Nat := lo
   let mut j : Nat := lo
-  -- let mut inv : {t : Nat × Nat // lo ≤ t.1 ∧ t.1 ≤ hi ∧ t.1 ≤ t.2} := ⟨(lo, lo), by omega, by omega⟩
-  for _ in [lo:x11 i j] do
+  for _ in [x11 i j:x12 i j] do
     -- FIXME need assertions in place of `sorry`s
     let xs := (← get).xs -- FIXME
     if lt (xs.get (x1 i j) sorry) (xs.get (x2 i j) sorry) then
@@ -29,7 +28,7 @@ namespace Monadic.Qpartition
       i := x7 i j
       j := x8 i j
   mxs fun xs => xs.swap (x3 i j) (x4 i j) sorry sorry
-  pure ⟨i, sorry, sorry⟩
+  pure ⟨x13 i j, sorry, sorry⟩
 
 variable {lt : α → α → Bool} 
 
@@ -40,17 +39,14 @@ theorem sorted
    (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
    (lo hi : Nat) (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi)
    :
-   ∃ x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12,
+   ∃ x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13,
    ⦃⌜#gxs = xs⌝⦄
-   qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 lt lo hi hlo hhi hle
+   qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 lt lo hi hlo hhi hle
    ⦃⇓ pivot => ⌜
      (∀ (x : Nat), lo ≤ x → x < pivot.1 → (h : x < n) → ¬lt ((#gxs).get pivot.1 (by omega)) ((#gxs).get x h)) ∧
      (∀ (x : Nat), pivot.1 < x → x ≤ hi → (h : x < n) → ¬lt ((#gxs).get x h) ((#gxs).get pivot.1 (by omega))) ∧
      Stable #gxs xs lo hi hlo hhi
    ⌝⦄ := by
-  -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
-  -- apply Exists.intro y
-  -- set_option pp.all true in
   exists? mvar1
   exists? mvar2
   exists? mvar3
@@ -62,10 +58,11 @@ theorem sorted
   exists? mvar9
   exists? mvar10
   exists? mvar11
-  exists default
+  exists? mvar12
+  exists? mvar13
 
-  mvar mvar01 : HP Nat → HP Nat → HP Nat -- loop invariant mvars
-  mvar mvar02 : HP Nat → HP Nat → HP Nat
+  mvar mvar01 : HP Nat → HP Nat → Nat -- loop invariant mvars
+  mvar mvar02 : HP Nat → HP Nat → Nat
 
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
@@ -78,9 +75,9 @@ theorem sorted
       let ⟨i, j⟩ := t.1
       let sp := t.2
       SPred.and -- FIXME want to use ∧ notation instead
-      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → ¬ lt ((#gxs).get (?mvar01 i j) sorry) ((#gxs).get x hx))⌝
+      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((#gxs).get (?mvar01 i j) hm) ((#gxs).get x hx))⌝
       (SPred.and
-      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → ¬ lt ((#gxs).get x hx) ((#gxs).get (?mvar02 i j) sorry))⌝
+      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((#gxs).get x hx) ((#gxs).get (?mvar02 i j) hm))⌝
       (SPred.and
       (⌜j = lo + sp.rpref.length⌝) -- FIXME can we individually label these with names for use with `mcases`?
       (SPred.and
@@ -102,22 +99,19 @@ theorem sorted
     
     and_intros
     intros
-    inst mvar3 rw [Vector.swap.get_left]
+    inst mvar3
+      rw [Vector.swap.get_left]
     rw [Vector.swap.get_other]
-    inst mvar4
-      try simp only -- FIXME
-      apply hl
+    inst mvar4 apply hl
     omega
-    omega
+    inst mvar13 omega
     omega
     rotate_left
 
     intros x _ _ _ -- FIXME
     rw [Vector.swap.get_left]
     ite x rw [Vector.swap.get_right]
-    inst mvar02
-      try simp only at hr -- FIXME
-      apply hr
+    inst mvar02 apply hr
     omega
     rotate_left 2
     . intros
@@ -138,14 +132,16 @@ theorem sorted
         apply eq_comm
         apply eq_trans
         exact hj
-        inst mvar11 apply add_sub
+        inst mvar11 inst mvar12 apply add_sub
         assumption
       omega
       omega
     rotate_right
-    have hj' : j = hi := by omega -- FIXME
-    rw [hj']
-    assumption
+    ite j assumption
+    . false_or_by_contra -- FIXME
+      apply h
+
+      omega
 
     . apply Vector.swap.stable
       omegas
@@ -177,7 +173,7 @@ theorem sorted
     assumption
     assumption
     apply ne_of_lt
-    nthassumption mvar9 2
+    nthassumption mvar9 3
     rotate_left 5 -- FIXME tactic to collectively defer all remaining goals in a .focus block not solved by `omega`
 
     inst mvar5 apply pred_range_single
@@ -186,9 +182,7 @@ theorem sorted
     rw [Vector.swap.get_other]
     apply le_asymm
     omegas
-    inst mvar1 inst mvar2
-      simp only at * -- FIXME
-      assumption
+    inst mvar1 inst mvar2 assumption
     rotate_left 3 -- FIXME
 
     apply pred_range_extend
@@ -201,7 +195,7 @@ theorem sorted
       omegas
       rotate_left 2
       apply ne_of_lt
-      nthassumption mvar10 2
+      nthassumption mvar10 3
       omegas
     . inst mvar6 apply pred_range_single
       intros

@@ -93,6 +93,19 @@ def iteTargetTrans (id : TSyntax `ident) (tac : Syntax) : TacticM Unit := do
     replaceMainGoal newGoals
     evalTactic tac
 
+/--
+`ite var tac` works as follows
+1. We replace `var` in the proof state with a fresh metavariable `?mvar`.
+2. `tac` is run in this new proof state, and we ensure that it succeeds
+   and assigns `?mvar := t`.
+3. We revert to the original proof state and create a `dite` branch with
+   the conditional `var = t`, creating two subgoals for the `then` and `else` cases.
+4. In the `then` branch with hypothesis `h : var = t`, we call `subst h` and
+   then run `tac` (again).
+
+This leaves us with two goals, one corresponding to the result of running `tac`
+where we assume `var = t` and substitute accordingly, and another where we assume `¬ var = t`.
+-/
 syntax (name := iteTrans) "ite" ident tacticSeq : tactic
 
 @[tactic iteTrans] def evalIteTrans : Tactic := fun stx => do
@@ -100,6 +113,29 @@ syntax (name := iteTrans) "ite" ident tacticSeq : tactic
   let tac   := stx[2]
   iteTargetTrans (.mk id) tac
 
+/--
+Given an existential goal `∃ x : T, P x`, `exists? mvar` will
+create a new metavariable `?mvar : T` which is provided as the existential witness,
+leaving us with the goal `P ?mvar`.
+`?mvar` can then be assigned via unification during the proof.
+
+Example:
+```
+def f (x : Nat) : Id Nat := do
+  pure x
+
+theorem f_spec : 
+    ∃ x,
+   ⦃⌜True⌝⦄
+   f x
+   ⦃⇓ r => ⌜r = 0⌝⦄ := by
+  exists? mvar1
+  mintro -
+  unfold f
+  simp
+  rfl -- assigns `?mvar1 = 0`
+```
+-/
 syntax (name := existsMvar) "exists?" ident : tactic
 
 def evalApplyLikeTactic (tac : MVarId → Expr → MetaM (List MVarId)) (e : Expr) : TacticM Unit := do
@@ -134,6 +170,33 @@ syntax (name := mkMVar) "mvar" ident typeSpec : tactic
   let type ← elabTerm typStx none -- | throwError "failed to elaborate mvar type: {typStx}"
   let newMvar ← mkFreshExprMVar type (userName := id)
 
+/--
+If `?mvar : HP U1 -> ... -> HP Un -> V`, `inst mvar tac` tries to intelligently assign
+`?mvar` based on the unification result of running `tac`. It works as follows:
+
+1. Any instances of `?mvar` replaced by the constant function `fun u1 ... un => ?newMvar`, for some fresh metavar `?newMvar`.
+2. The tactic `tac` is run. If `?newMvar` is assigned, continue, otherwise fail.
+3. The proof state is reverted to what it was before (1).
+4. We search for `?mvar` in the original proof state, finding an instance with `n` arguments `a1 ... an`.
+4. We abstract `a1 ... an` out of `t` to construct a lambda expression `f`.
+5. We assign `?mvar := f` and rerun `tac`.
+
+Example:
+```
+def g (x : HP Nat → Nat) (a : Nat) : Id Nat := do
+  pure (x a)
+
+theorem g_spec (a : Nat) :
+    ∃ x,
+   ⦃⌜a > 0⌝⦄
+   g x a
+   ⦃⇓ r => ⌜r > 0⌝⦄ := by
+  exists? mvar1
+  mvcgen [g]
+  mleave
+  inst mvar1 assumption -- assigns `?mvar1 = fun a => a`
+```
+-/
 syntax (name := inst) "inst" ident tacticSeq : tactic
 
 syntax (name := inst') "inst'" ident tacticSeq : tactic
@@ -203,6 +266,7 @@ abbrev HP : Sort u → Sort u := id
   let mvarAppArgs := mvarApp.getAppArgs
 
   let newMvar ← mkFreshExprMVar (← inferType mvarApp)
+  trace[Meta.debug] s!"DBG[35]: Aux.lean:205: newMvar={newMvar}"
   let newMvarLam ← forallBoundedTelescope (← mvar.getType) numHPs fun vs _ => do
     mkLambdaFVars vs newMvar
   let rep e :=
@@ -226,16 +290,19 @@ abbrev HP : Sort u → Sort u := id
     newCtx := newCtx.modifyLocalDecl newDecl.fvarId fun _ => newDecl
   let newTarget := rep target
   let newGoal ← withLCtx' newCtx $ mkFreshExprMVar newTarget
+  trace[Meta.debug] s!"DBG[36]: Aux.lean:229: newGoal={newGoal}"
 
   let state ← saveState
   pushGoal newGoal.mvarId!
   Tactic.focus do
+    evalTactic (← `(tactic| try simp only at *))
     tac
     while (← getGoals).length > 0 do
       discard popMainGoal
 
   unless (← newMvar.mvarId!.isAssigned) do throwError "failed to assign `{mvar}` through unification"
   let assignment ← instantiateMVars newMvar
+  trace[Meta.debug] s!"DBG[34]: Aux.lean:238: assignment={assignment}"
   state.restore
 
   forallBoundedTelescope (← mvar.getType) numHPs fun vs _ => do
@@ -290,6 +357,41 @@ def _root_.Lean.MVarId.nthassumption (mvarId : MVarId) (n : Nat) : MetaM Unit :=
   unless (← mvarId.nthassumptionCore n) do
     throwTacticEx `nthassumption mvarId
 
+/--
+`nthassumption mvar n` behaves much like `inst mvar assumption`,
+except it uses the `n`th assumption that matches the current goal.
+
+This allows for selecting which particular assumption is used, which is useful
+when unification incurs a metavariable assignment.
+
+Example:
+```
+def g' (x : HP Nat → HP Nat → Nat) (a b : Nat) : Id Nat := do
+  pure (x a b)
+
+theorem g'_spec (a b : Nat) :
+    ∃ x,
+   ⦃⌜a > 0 ∧ b > 0 ∧ 5 > a⌝⦄
+   g' x a b
+   ⦃⇓ r => ⌜r > 0 ∧ 5 > r⌝⦄ := by
+  exists? mvar1
+  mvcgen [g']
+  rename_i h
+  rcases h with ⟨_, _, _⟩
+  mleave
+
+  -- Goal:
+  -- a b : Nat
+  -- a✝² : 0 < a
+  -- a✝¹ : 0 < b
+  -- a✝ : a < 5
+  -- ⊢ 0 < ?mvar1 a b ∧ ?mvar1 a b < 5
+
+  and_intros
+  nthassumption mvar1 2 -- assigns `?mvar1 = fun a b => a`
+  assumption
+```
+-/
 syntax (name := nthassumption) "nthassumption" ident num : tactic
 
 @[tactic nthassumption] def evalNthAssumption : Tactic := fun stx => do
