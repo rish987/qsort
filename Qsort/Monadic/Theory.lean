@@ -25,7 +25,7 @@ abbrev SM := StateM (ST α n)
 
 abbrev ps := PostShape.arg (ST α n) PostShape.pure
 
-abbrev gxs : SVal ((ST α n)::[]) (Vector α n) := fun s => SVal.pure s.xs
+abbrev gxs : SVal ((ST α n)::[]) (Vector α n) := fun s => s.xs
 
 def g : StateM (ST α n) (ST α n) := do pure $ (← get)
 
@@ -119,9 +119,9 @@ def qpartition_prep
   qpartition_maybeSwap lt hi mid hhi mid.2
 
 theorem qpartition_maybeSwap_perm {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi := by omega) :
-   ⦃⌜#gxs = xs⌝⦄
+   ⦃fun s : ST α n => ⌜s.xs = xs⌝⦄
    qpartition_maybeSwap lt lo hi hlo hhi
-   ⦃⇓ pivot => ⌜Stable #gxs xs lo hi hlo hhi ∧ (#gxs).1.Perm xs.1⌝⦄ := by
+   ⦃⇓ pivot => fun s => ⌜Stable s.xs xs lo hi hlo hhi ∧ (s.xs).1.Perm xs.1⌝⦄ := by
   sorry
 
 namespace qpartition_prep
@@ -132,16 +132,16 @@ theorem nil {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega)(
   sorry
 
 theorem stable {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi := by omega) :
-   ⦃⌜#gxs = xs⌝⦄
+   ⦃fun s : ST α n => ⌜s.xs = xs⌝⦄
    qpartition_prep lt lo hi hlo hhi
-   ⦃⇓ pivot => ⌜Stable #gxs xs lo hi hlo hhi⌝⦄ := by
+   ⦃⇓ pivot => fun s => ⌜Stable s.xs xs lo hi hlo hhi⌝⦄ := by
   sorry
 
 -- @[spec]
 theorem perm {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi := by omega) :
-   ⦃⌜#gxs = xs⌝⦄
+   ⦃fun s : ST α n => ⌜s.xs = xs⌝⦄
    qpartition_prep lt lo hi hlo hhi
-   ⦃⇓ pivot => ⌜(#gxs).1.Perm xs.1⌝⦄ := by
+   ⦃⇓ pivot => fun s => ⌜(s.xs).1.Perm xs.1⌝⦄ := by
   sorry
 end qpartition_prep
 

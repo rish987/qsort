@@ -15,7 +15,7 @@ open Lean.Parser.Term
 
 open Std.Do
 
-attribute [spred] SPred.and_cons SVal.curry_cons SVal.curry_nil SVal.uncurry_cons SVal.uncurry_nil SPred.and_nil
+attribute [spred] SPred.and_cons SVal.curry_cons SVal.curry_nil SVal.uncurry_cons SVal.uncurry_nil SPred.and_nil SPred.down_pure
 
 macro "mvcgen_aux" : tactic => do
   `(tactic|

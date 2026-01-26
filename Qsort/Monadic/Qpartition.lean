@@ -38,35 +38,36 @@ theorem sorted
    (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
    (lo hi : Nat) (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi)
    :
-   ⦃⌜#gxs = xs⌝⦄
+   ⦃fun s => ⌜s.xs = xs⌝⦄
    qpartition lt lo hi hlo hhi hle
-   ⦃⇓ pivot => ⌜
-     Stable #gxs xs lo hi ∧
-     (∀ (i : Nat) (h : i < n), i < pivot.1 → i ≥ lo → ¬lt ((#gxs).get pivot.1 (by omega)) ((#gxs).get i h)) ∧
-     (∀ (i : Nat) (h : i < n), i > pivot.1 → i ≤ hi → ¬lt ((#gxs).get i h) ((#gxs).get pivot.1 (by omega)))⌝⦄ := by
+   ⦃⇓ pivot => fun s => ⌜
+     Stable s.xs xs lo hi ∧
+     (∀ (i : Nat) (h : i < n), i < pivot.1 → i ≥ lo → ¬lt ((s.xs).get pivot.1 (by omega)) ((s.xs).get i h)) ∧
+     (∀ (i : Nat) (h : i < n), i > pivot.1 → i ≤ hi → ¬lt ((s.xs).get i h) ((s.xs).get pivot.1 (by omega)))⌝⦄ := by
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
   mvcgen [qpartition_prep.stable]
 
   omegas
 
-  case inv =>
-    exact PostCond.total fun (⟨i, j⟩, sp) =>
+  case inv1 =>
+    exact ⇓ (sp, ⟨i, j⟩) => fun s =>
       SPred.and -- FIXME want to use ∧ notation instead
-      (⌜j = lo + sp.rpref.length⌝) -- FIXME can we individually label these with names for use with `mcases`?
+      (⌜j = lo + sp.prefix.length⌝) -- FIXME can we individually label these with names for use with `mcases`?
       (SPred.and
       (⌜lo ≤ i ∧ j ≤ hi ∧ i ≤ j⌝)
       (SPred.and
-      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → ¬ lt ((#gxs).get hi hhi) ((#gxs).get x hx))⌝
+      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → ¬ lt ((s.xs).get hi hhi) ((s.xs).get x hx))⌝
       (SPred.and
-      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → ¬ lt ((#gxs).get x hx) ((#gxs).get hi hhi))⌝
-      ⌜Stable #gxs xs lo hi ⌝
+      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get hi hhi))⌝
+      ⌜Stable s.xs xs lo hi ⌝
       )))
 
   . mvcgen_aux -- FIXME automate
-    rename_i h
+    rename_i h _ _ 
 
     rcases h with ⟨hj, _, hl, hr, _⟩ -- FIXME
+    simp only [SPred.down_pure]
 
     rw [List.length_cons]
 
