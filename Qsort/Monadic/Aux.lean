@@ -15,7 +15,7 @@ open Lean.Parser.Term
 
 open Std.Do
 
-attribute [spred] SPred.and_cons SVal.curry_cons SVal.curry_nil SVal.uncurry_cons SVal.uncurry_nil SPred.and_nil
+attribute [spred] SPred.and_cons SVal.curry_cons SVal.curry_nil SVal.uncurry_cons SVal.uncurry_nil SPred.and_nil SPred.down_pure
 
 macro "mvcgen_aux" : tactic => do
   `(tactic|
@@ -174,12 +174,12 @@ syntax (name := mkMVar) "mvar" ident typeSpec : tactic
 If `?mvar : HP U1 -> ... -> HP Un -> V`, `inst mvar tac` tries to intelligently assign
 `?mvar` based on the unification result of running `tac`. It works as follows:
 
-1. Any instances of `?mvar` replaced by the constant function `fun u1 ... un => ?newMvar`, for some fresh metavar `?newMvar`.
-2. The tactic `tac` is run. If `?newMvar` is assigned, continue, otherwise fail.
+1. Any instances of `?mvar` are replaced by the constant function `fun u1 ... un => ?newMvar`, for some fresh metavar `?newMvar`.
+2. The tactic `tac` is run. If `?newMvar` is assigned to some value `t`, continue, otherwise fail.
 3. The proof state is reverted to what it was before (1).
 4. We search for `?mvar` in the original proof state, finding an instance with `n` arguments `a1 ... an`.
-4. We abstract `a1 ... an` out of `t` to construct a lambda expression `f`.
-5. We assign `?mvar := f` and rerun `tac`.
+5. We abstract `a1 ... an` out of `t` to construct a lambda expression `f`.
+6. We assign `?mvar := f` and rerun `tac`.
 
 Example:
 ```

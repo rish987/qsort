@@ -4,6 +4,7 @@ import Qsort.Monadic.Aux
 import Qsort.Monadic.Theory
 
 set_option mvcgen.warning false
+set_option pp.showLetValues true
 
 open Std.Do
 open List
@@ -40,12 +41,12 @@ theorem sorted
    (lo hi : Nat) (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi)
    :
    ∃ x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13,
-   ⦃⌜#gxs = xs⌝⦄
+   ⦃fun s => ⌜s.xs = xs⌝⦄
    qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 lt lo hi hlo hhi hle
-   ⦃⇓ pivot => ⌜
-     (∀ (x : Nat), lo ≤ x → x < pivot.1 → (h : x < n) → ¬lt ((#gxs).get pivot.1 (by omega)) ((#gxs).get x h)) ∧
-     (∀ (x : Nat), pivot.1 < x → x ≤ hi → (h : x < n) → ¬lt ((#gxs).get x h) ((#gxs).get pivot.1 (by omega))) ∧
-     Stable #gxs xs lo hi hlo hhi
+   ⦃⇓ pivot s => ⌜
+     (∀ (x : Nat), lo ≤ x → x < pivot.1 → (h : x < n) → ¬lt ((s.xs).get pivot.1 (by omega)) ((s.xs).get x h)) ∧
+     (∀ (x : Nat), pivot.1 < x → x ≤ hi → (h : x < n) → ¬lt ((s.xs).get x h) ((s.xs).get pivot.1 (by omega))) ∧
+     Stable s.xs xs lo hi hlo hhi
    ⌝⦄ := by
   exists? mvar1
   exists? mvar2
@@ -70,23 +71,23 @@ theorem sorted
 
   omegas
 
-  case inv =>
-    exact PostCond.total fun t =>
-      let ⟨i, j⟩ := t.1
-      let sp := t.2
+  case inv1 =>
+    exact ⇓ t => fun s =>
+      let sp := t.1;
+      let ⟨i, j⟩ := t.2;
       SPred.and -- FIXME want to use ∧ notation instead
-      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((#gxs).get (?mvar01 i j) hm) ((#gxs).get x hx))⌝
+      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))⌝
       (SPred.and
-      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((#gxs).get x hx) ((#gxs).get (?mvar02 i j) hm))⌝
+      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get (?mvar02 i j) hm))⌝
       (SPred.and
-      (⌜j = lo + sp.rpref.length⌝) -- FIXME can we individually label these with names for use with `mcases`?
+      (⌜j = lo + sp.prefix.length⌝) -- FIXME can we individually label these with names for use with `mcases`?
       (SPred.and
       (⌜lo ≤ i ∧ j ≤ hi ∧ i ≤ j⌝)
-      ⌜Stable #gxs xs lo hi hlo hhi⌝
+      ⌜Stable s.xs xs lo hi hlo hhi⌝
       )))
 
-  case post.success.post.success =>
-    mvcgen_aux
+  case vc5.post.success.post.success =>
+    simp only [spred] at *
     rename_i r _ h
 
     -- FIXME FIXME these simplifications are related to the use of `Specs.forin_range`, and should be automatically applied whenever that spec is used
@@ -113,7 +114,7 @@ theorem sorted
     ite x rw [Vector.swap.get_right]
     inst mvar02 apply hr
     omega
-    rotate_left 2
+    rotate_left 1
     . intros
       rw [Vector.swap.get_other]
       apply hr
@@ -149,17 +150,19 @@ theorem sorted
     omega
 
   . mvcgen_aux -- FIXME automate
-    rename_i h
+    rename_i pref cur suff h' _ i'' j'' _ h _ _ i' j'
+    simp only [i', j', i'', j''] at *
+    simp only [length_append, length_cons, length_nil, Nat.zero_add]
 
     rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
 
-    rw [List.length_cons]
+    -- simp only [length_append, length_cons, length_nil, Nat.zero_add]
 
     -- FIXME FIXME both of these properties should be provided by Spec.forIn_range?
-    have hrng_dec_sz : (rpref.reverse ++ x :: suff).length = hi - lo := by
-      rw [← h]
-      simp only [List.length_range', Nat.sub_zero, Nat.add_one_sub_one, Nat.div_one]
-    rw [List.length_append, List.length_reverse, List.length_cons] at hrng_dec_sz
+    have hrng_dec_sz : (pref ++ cur :: suff).length = hi - lo := by
+      rw [← h']
+      simp only [List.length_range', Nat.add_one_sub_one, Nat.div_one]
+    rw [List.length_append, List.length_cons] at hrng_dec_sz
 
     and_intros
     omegas
@@ -174,7 +177,7 @@ theorem sorted
     assumption
     apply ne_of_lt
     nthassumption mvar9 3
-    rotate_left 5 -- FIXME tactic to collectively defer all remaining goals in a .focus block not solved by `omega`
+    rotate_left 3 -- FIXME tactic to collectively defer all remaining goals in a .focus block not solved by `omega`
 
     inst mvar5 apply pred_range_single
     intros
@@ -183,7 +186,7 @@ theorem sorted
     apply le_asymm
     omegas
     inst mvar1 inst mvar2 assumption
-    rotate_left 3 -- FIXME
+    rotate_left 1 -- FIXME
 
     apply pred_range_extend
     intros x
@@ -192,8 +195,9 @@ theorem sorted
       rw [Vector.swap.get_other]
       omegas
       apply hr
+      rename_i hp _ _ _ _
       omegas
-      rotate_left 2
+      rotate_right 1
       apply ne_of_lt
       nthassumption mvar10 3
       omegas
@@ -209,17 +213,17 @@ theorem sorted
       omegas
 
   . mvcgen_aux -- FIXME automate
-    rename_i h
+    rename_i pref cur suff h' _ i'' j'' _ h _ _ i' j'
+    simp only [i', j', i'', j''] at *
+    simp only [length_append, length_cons, length_nil, Nat.zero_add]
 
     rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
 
-    rw [List.length_cons]
-
     -- FIXME FIXME both of these properties should be provided by Spec.forIn_range?
-    have hrng_dec_sz : (rpref.reverse ++ x :: suff).length = hi - lo := by
-      rw [← h]
+    have hrng_dec_sz : (pref ++ cur :: suff).length = hi - lo := by
+      rw [← h']
       simp only [List.length_range', Nat.sub_zero, Nat.add_one_sub_one, Nat.div_one]
-    rw [List.length_append, List.length_reverse, List.length_cons] at hrng_dec_sz
+    rw [List.length_append, List.length_cons] at hrng_dec_sz
     
     and_intros
     omegas
@@ -235,8 +239,7 @@ theorem sorted
 
   omegas
 
-  case success.pre1 =>
-    rename_i h
+  . rename_i h
     next h' _ _ =>
     rw [h'] at h -- FIXME should have been automated
 
