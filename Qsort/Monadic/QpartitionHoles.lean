@@ -2,6 +2,7 @@ import Std.Tactic.Do
 import Qsort.AuxLemmas
 import Qsort.Monadic.Aux
 import Qsort.Monadic.Theory
+import Qsort.SDo.VCGen
 
 set_option mvcgen.warning false
 set_option pp.showLetValues true
@@ -67,7 +68,7 @@ theorem sorted
 
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
-  mvcgen [qpartition_prep.stable]
+  smvcgen [qpartition_prep.stable]
 
   omegas
 
@@ -150,8 +151,7 @@ theorem sorted
     omega
 
   . mvcgen_aux -- FIXME automate
-    rename_i pref cur suff h' _ i'' j'' _ h _ _ i' j'
-    simp only [i', j', i'', j''] at *
+    rename_i pref cur suff h' _ _ h _
     simp only [length_append, length_cons, length_nil, Nat.zero_add]
 
     rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
@@ -213,8 +213,7 @@ theorem sorted
       omegas
 
   . mvcgen_aux -- FIXME automate
-    rename_i pref cur suff h' _ i'' j'' _ h _ _ i' j'
-    simp only [i', j', i'', j''] at *
+    rename_i pref cur suff h' _ _ h _ 
     simp only [length_append, length_cons, length_nil, Nat.zero_add]
 
     rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
@@ -250,7 +249,6 @@ theorem sorted
 
     and_intros
     omegas
-
 
 -- theorem perm {lo : Fin n} {hi : Fin n} (hle : lo ≤ hi := by omega) :
 --    ∃ x1 x2 x3 x4,

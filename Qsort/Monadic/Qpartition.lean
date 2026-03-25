@@ -2,6 +2,7 @@ import Std.Tactic.Do
 import Qsort.AuxLemmas
 import Qsort.Monadic.Theory
 import Qsort.Monadic.Aux
+import Qsort.SDo.VCGen
 
 set_option mvcgen.warning false
 
@@ -10,30 +11,32 @@ open List
 
 namespace Monadic.Qpartition
 
--- @[inline] def test : StateM (ST α n) Nat := do
---   let mut i : Nat := 0
---   let mut j : Nat := 0
---   -- let mut inv : {t : Nat × Nat // lo ≤ t.1 ∧ t.1 ≤ hi ∧ t.1 ≤ t.2} := ⟨(lo, lo), by omega, by omega⟩
---   for _ in [0:10] do
---     if i + j ≥ 0 then
---       -- FIXME need assertions in place of `sorry`s
---       i := i + 1
---       j := j + 1
---   pure i
---
--- theorem test_thm :
---    ⦃fun (s : (ST α n)) => ⌜True⌝⦄
---    test
---    ⦃⇓ r => fun s => ⌜r > 0⌝⦄ := by
---   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
---   unfold test
---   mvcgen
---   case inv1 =>
---     exact ⇓ (sp, ⟨i, j⟩) => fun s => ⌜i = sp.prefix.length⌝
---   sorry
---   sorry
---   sorry
---   sorry
+@[inline] def test : StateM (ST α n) Nat := do
+  let mut i : Nat := 0
+  let mut j : Nat := 0
+  -- let mut inv : {t : Nat × Nat // lo ≤ t.1 ∧ t.1 ≤ hi ∧ t.1 ≤ t.2} := ⟨(lo, lo), by omega, by omega⟩
+  for _ in [0:10] do
+    if i + j ≥ 0 then
+      -- FIXME need assertions in place of `sorry`s
+      i := i + 1
+      j := j + 1
+  pure i
+
+set_option trace.Elab.Tactic.Do.vcgen true in
+theorem test_thm :
+   ⦃fun (s : (ST α n)) => ⌜True⌝⦄
+   test
+   ⦃⇓ r => fun s => ⌜r > 0⌝⦄ := by
+  -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
+  unfold test
+  -- mintro h
+  smvcgen
+  case inv1 =>
+    exact ⇓ (sp, ⟨i, j⟩) => fun s => ⌜i = sp.prefix.length⌝
+  sorry
+  sorry
+  sorry
+  sorry
 
 @[inline] def qpartition
     (lt : α → α → Bool) (lo hi : Nat) (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi) :
