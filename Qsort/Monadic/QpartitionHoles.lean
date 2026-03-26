@@ -36,6 +36,7 @@ variable {lt : α → α → Bool}
 
 namespace qpartition
 
+-- set_option trace.Elab.Tactic.Do.vcgen true in
 theorem sorted 
    (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a)
    (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
@@ -68,31 +69,27 @@ theorem sorted
 
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
-  smvcgen [qpartition_prep.stable]
+  smvcgen [qpartition_prep.stable] invariants
+  . ⇓ t => fun s =>
+      let sp := t.1;
+      let ⟨i, j⟩ := t.2;
+      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
+      ∧
+      (∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get (?mvar02 i j) hm))
+      ∧
+      (j = lo + sp.prefix.length)
+      ∧
+      (lo ≤ i ∧ j ≤ hi ∧ i ≤ j)
+      ∧
+      (Stable s.xs xs lo hi hlo hhi)⌝
 
   omegas
 
-  case inv1 =>
-    exact ⇓ t => fun s =>
-      let sp := t.1;
-      let ⟨i, j⟩ := t.2;
-      SPred.and -- FIXME want to use ∧ notation instead
-      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))⌝
-      (SPred.and
-      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get (?mvar02 i j) hm))⌝
-      (SPred.and
-      (⌜j = lo + sp.prefix.length⌝) -- FIXME can we individually label these with names for use with `mcases`?
-      (SPred.and
-      (⌜lo ≤ i ∧ j ≤ hi ∧ i ≤ j⌝)
-      ⌜Stable s.xs xs lo hi hlo hhi⌝
-      )))
-
   case vc5.post.success.post.success =>
-    simp only [spred] at *
     rename_i r _ h
 
     -- FIXME FIXME these simplifications are related to the use of `Specs.forin_range`, and should be automatically applied whenever that spec is used
-    simp only [List.length_reverse, List.length_range'] at h
+    simp only [List.length_range'] at h
     simp only [Nat.add_one_sub_one, Nat.div_one] at h
 
     rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
@@ -150,8 +147,7 @@ theorem sorted
 
     omega
 
-  . mvcgen_aux -- FIXME automate
-    rename_i pref cur suff h' _ _ h _
+  . rename_i pref cur suff h' _ _ h _
     simp only [length_append, length_cons, length_nil, Nat.zero_add]
 
     rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
@@ -212,8 +208,7 @@ theorem sorted
     . apply Vector.swap.stable
       omegas
 
-  . mvcgen_aux -- FIXME automate
-    rename_i pref cur suff h' _ _ h _ 
+  . rename_i pref cur suff h' _ _ h _ 
     simp only [length_append, length_cons, length_nil, Nat.zero_add]
 
     rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
@@ -221,7 +216,7 @@ theorem sorted
     -- FIXME FIXME both of these properties should be provided by Spec.forIn_range?
     have hrng_dec_sz : (pref ++ cur :: suff).length = hi - lo := by
       rw [← h']
-      simp only [List.length_range', Nat.sub_zero, Nat.add_one_sub_one, Nat.div_one]
+      simp only [List.length_range', Nat.add_one_sub_one, Nat.div_one]
     rw [List.length_append, List.length_cons] at hrng_dec_sz
     
     and_intros
@@ -241,8 +236,6 @@ theorem sorted
   . rename_i h
     next h' _ _ =>
     rw [h'] at h -- FIXME should have been automated
-
-    mvcgen_aux
 
     -- FIXME automate
     dsimp

@@ -61,6 +61,7 @@ theorem test_thm :
 variable {lt : α → α → Bool}
 
 namespace qpartition
+set_option trace.Elab.Tactic.Do.vcgen true in
 theorem sorted 
    (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a)
    (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
@@ -74,27 +75,48 @@ theorem sorted
      (∀ (i : Nat) (h : i < n), i > pivot.1 → i ≤ hi → ¬lt ((s.xs).get i h) ((s.xs).get pivot.1 (by omega)))⌝⦄ := by
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
-  mvcgen [qpartition_prep.stable]
+  -- mintro h
+  -- mspec qpartition_prep.stable
+  -- mspec_no_bind Std.Do.Spec.bind
+  -- simp only [MonadState.get]
+  -- mspec
+  -- mspec
+  -- case post.success.post.success =>
+  --   mintro ∀s
+  --   mframe
+  --   mleave
+  --   sorry
+  -- case inv =>
+  --   exact ⇓ (sp, ⟨i, j⟩) => fun s =>
+  --     SPred.and -- FIXME want to use ∧ notation instead
+  --     (⌜j = lo + sp.prefix.length⌝) -- FIXME can we individually label these with names for use with `mcases`?
+  --     (SPred.and
+  --     (⌜lo ≤ i ∧ j ≤ hi ∧ i ≤ j⌝)
+  --     (SPred.and
+  --     ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → ¬ lt ((s.xs).get hi hhi) ((s.xs).get x hx))⌝
+  --     (SPred.and
+  --     ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get hi hhi))⌝
+  --     ⌜Stable s.xs xs lo hi ⌝
+  --     )))
+  -- unfold MonadState.get
+  -- mspec
+  smvcgen [qpartition_prep.stable] invariants
+  . ⇓ (sp, ⟨i, j⟩) => fun s =>
+      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → ¬ lt ((s.xs).get hi hhi) ((s.xs).get x hx))
+      ∧
+      (∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get hi hhi))
+      ∧
+      j = lo + sp.prefix.length
+      ∧
+      (lo ≤ i ∧ j ≤ hi ∧ i ≤ j)
+      ∧
+      Stable s.xs xs lo hi⌝
 
   omegas
 
-  case inv1 =>
-    exact ⇓ (sp, ⟨i, j⟩) => fun s =>
-      SPred.and -- FIXME want to use ∧ notation instead
-      (⌜j = lo + sp.prefix.length⌝) -- FIXME can we individually label these with names for use with `mcases`?
-      (SPred.and
-      (⌜lo ≤ i ∧ j ≤ hi ∧ i ≤ j⌝)
-      (SPred.and
-      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → ¬ lt ((s.xs).get hi hhi) ((s.xs).get x hx))⌝
-      (SPred.and
-      ⌜(∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get hi hhi))⌝
-      ⌜Stable s.xs xs lo hi ⌝
-      )))
+  . rename_i pref cur suff h' _ _ h _
 
-  . mvcgen_aux -- FIXME automate
-    rename_i pref cur suff h' _ _ _ _ h _ _ 
-
-    rcases h with ⟨hj, _, hl, hr, _⟩ -- FIXME
+    rcases h with ⟨hl, hr, hj, _, _⟩ -- FIXME
 
     -- simp only [length_append, length_cons, length_nil, Nat.zero_add, Nat.add_le_add_iff_right]
     simp only [length_append, length_cons, length_nil, Nat.zero_add]
@@ -137,17 +159,16 @@ theorem sorted
     . apply Vector.swap.stable
       omegas
 
-  . mvcgen_aux -- FIXME automate
-    rename_i pref cur suff h' _ _ _ _ h _ _ 
+  . rename_i pref cur suff h' _ _ h _
 
-    rcases h with ⟨hj, _, hl, hr, _⟩
+    rcases h with ⟨hl, hr, hj, _, _⟩ -- FIXME
 
     simp only [length_append, length_cons, length_nil, Nat.zero_add]
 
     -- FIXME FIXME both of these properties should be provided by Spec.forIn_range?
     have hrng_dec_sz : (pref ++ cur :: suff).length = hi - lo := by
       rw [← h']
-      simp only [List.length_range', Nat.sub_zero, Nat.add_one_sub_one, Nat.div_one]
+      simp only [List.length_range', Nat.add_one_sub_one, Nat.div_one]
     rw [List.length_append, List.length_cons] at hrng_dec_sz
     
     and_intros
@@ -167,8 +188,6 @@ theorem sorted
     next h' _ _ =>
     rw [h'] at h -- FIXME should have been automated
 
-    mvcgen_aux
-
     -- FIXME automate
     dsimp
 
@@ -176,13 +195,11 @@ theorem sorted
     omegas
 
   . rename_i h
-
-    simp only [spred] at *
     -- FIXME FIXME these simplifications are related to the use of `Specs.forin_range`, and should be automatically applied whenever that spec is used
     simp only [List.length_range'] at h
     simp only [Nat.add_one_sub_one, Nat.div_one] at h
 
-    rcases h with ⟨hj, _, hl, hr, _⟩ -- FIXME
+    rcases h with ⟨hl, hr, hj, _, _⟩ -- FIXME
 
     and_intros
     rotate_left

@@ -58,7 +58,8 @@ partial def genVCs (goal : MVarId) (ctx : Do.Context) (fuel : Fuel) : MetaM Resu
       mv.setTag (Name.mkSimple ("vc" ++ toString (idx + 1)) ++ (← mv.getTag).eraseMacroScopes)
     return { invariants := state.invariants, vcs := state.vcs }
 where
-  onFail (goal : MGoal) (name : Name) : VCGenM Expr := do
+  onFail (idx : Nat) (goal : MGoal) (name : Name) : VCGenM Expr := do
+    trace[Elab.Tactic.Do.vcgen] "failed: {idx}, {name}"
     -- trace[Elab.Tactic.Do.vcgen] "fail {goal.toExpr}"
     emitVC goal.toExpr name
 
@@ -77,7 +78,10 @@ where
     for mvar in mvars do
       if ← mvar.isAssigned then continue
       -- trace[Elab.Tactic.Do.vcgen] "assignMVars {← mvar.getTag}, isDelayedAssigned: {← mvar.isDelayedAssigned},\n{mvar}"
-      let some prf ← (tryGoal mvar).run | addSubGoalAsVC mvar
+      trace[Elab.Tactic.Do.vcgen] "tryGoal: {← mvar.getTag}: {← mvar.getType}"
+      let some prf ← (tryGoal mvar).run |
+        trace[Elab.Tactic.Do.vcgen] "added VC: {← mvar.getTag}: {← mvar.getType}"
+        addSubGoalAsVC mvar
       if ← mvar.isAssigned then
         throwError "Tried to assign already assigned metavariable `{← mvar.getTag}`. MVar: {mvar}\nAssignment: {mkMVar mvar}\nNew assignment: {prf}"
       mvar.assign prf
@@ -97,15 +101,16 @@ where
       return ← mIntro goal (← `(binderIdent| _)) (fun g => onGoal g name)
     if f.isConstOf ``PredTrans.apply then
       return ← onWPApp goal name
-    onFail { goal with target := T } name
+    onFail 1 { goal with target := T } name
 
-  onWPApp goal name : VCGenM Expr := ifOutOfFuel (onFail goal name) do
+  onWPApp goal name : VCGenM Expr := ifOutOfFuel (onFail 2 goal name) do
+    trace[Elab.Tactic.Do.vcgen] "onWpApp: {goal.hyps}"
     let args := goal.target.getAppArgs
     let trans := args[2]!
     -- logInfo m!"trans: {trans}"
     let wp ← instantiateMVarsIfMVarApp trans
     trace[Elab.Tactic.Do.vcgen] "wp: {wp}"
-    let_expr WP.wp m _ps _instWP α e := wp | onFail goal name
+    let_expr WP.wp m _ps _instWP α e := wp | onFail 3 goal name
     -- NB: e here is a monadic expression, in the "object language"
     let e ← instantiateMVarsIfMVarApp e
     let e := e.headBeta
@@ -154,13 +159,15 @@ where
         -- We eta-expand as far here as goal.σs permits.
         -- This is so that `mSpec` can frame hypotheses involving uninstantiated loop invariants.
         -- It is absolutely crucial that we do not lose these hypotheses in the inductive step.
-        collectFreshMVars <| mIntroForallN goal (← TypeList.length goal.σs) fun goal =>
+        collectFreshMVars <| mIntroForallN goal (← TypeList.length goal.σs) fun goal => do
+          trace[Elab.Tactic.Do.vcgen] "onWpApp2: {goal.hyps}"
           mSpec goal (fun _wp  => return specThm) name (tryTrivial := false)
       catch ex =>
+        trace[Elab.Tactic.Do.vcgen] "e: {e}"
         trace[Elab.Tactic.Do.vcgen] "Failed to find spec for {wp}. Trying simp. Reason: {ex.toMessageData}"
         -- Last resort: Simp and try again
         let res ← Simp.simp e
-        unless res.expr != e do return ← onFail goal name
+        unless res.expr != e do return ← onFail 4 goal name
         burnOne
         trace[Elab.Tactic.Do.vcgen] "Simplified program to {res.expr}"
         let prf ← onWPApp (goal.withNewProg res.expr) name
@@ -172,7 +179,7 @@ where
       assignMVars specHoles.toList
       trace[Elab.Tactic.Do.vcgen] "Unassigned specHoles: {(← specHoles.filterM (not <$> ·.isAssigned)).map fun m => (m.name, mkMVar m)}"
       return prf
-    return ← onFail goal name
+    return ← onFail 5 goal name
 
   -- Pre: It is `wp⟦e⟧ Q .. := goal.target` and `let .some info ← getSplitInfo? e`, without needing
   --      to instantiate any MVars.
@@ -476,6 +483,8 @@ def elabSMVCGen : Tactic := fun stx => withMainContext do
   let goal ← if ctx.config.elimLets then elimLets goal else pure goal
   let { invariants, vcs } ← VCGen.genVCs goal ctx fuel
   trace[Elab.Tactic.Do.vcgen] "after genVCs {← (invariants ++ vcs).mapM fun m => m.getTag}"
+  -- for vc in vcs do
+  --   trace[Elab.Tactic.Do.vcgen] "type of {← vc.getTag}: {← vc.getType}"
   let runOnVCs (tac : TSyntax `tactic) (vcs : Array MVarId) : TermElabM (Array MVarId) :=
     vcs.flatMapM fun vc => List.toArray <$> Term.withSynthesize do
       Tactic.run vc (Tactic.evalTactic tac *> Tactic.pruneSolvedGoals)
