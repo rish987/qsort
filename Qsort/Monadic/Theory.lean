@@ -106,43 +106,55 @@ theorem get_other {xs : Vector α n} {i j : Nat} (k : Nat)
 end swap
 end Vector
 
-def qpartition_maybeSwap (lt : α → α → Bool) (lo hi : Nat) (hlo : lo < n) (hhi: hi < n) : StateM (ST α n) Unit := do
+def qp_maybeSwap (lt : α → α → Bool) (lo hi : Nat) (hlo : lo < n) (hhi: hi < n) : StateM (ST α n) Unit := do
   if lt ((← get).xs.get hi hhi) ((← get).xs.get lo hlo) then
     mxs fun xs => xs.swap lo hi
 
-def qpartition_prep
+def qp_prep
     (lt : α → α → Bool) (lo hi : Nat) (hlo : lo < n) (hhi: hi < n):
     StateM (ST α n) Unit := do
   let mid : Fin n := ⟨(lo + hi) / 2, by omega⟩
-  qpartition_maybeSwap lt lo mid hlo mid.2
-  qpartition_maybeSwap lt lo hi hlo hhi
-  qpartition_maybeSwap lt hi mid hhi mid.2
+  qp_maybeSwap lt lo mid hlo mid.2
+  qp_maybeSwap lt lo hi hlo hhi
+  qp_maybeSwap lt hi mid hhi mid.2
 
-theorem qpartition_maybeSwap_perm {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi := by omega) :
+def swap (i j : Nat) (hi : i < n) (hj: j < n) : StateM (ST α n) Unit :=
+  mxs fun xs => xs.swap i j hi hj
+
+@[spec]
+theorem swap_triple (i j : Nat) (hi : i < n) (hj: j < n)
+    :
+   ⦃fun (s : ST α n) => Q.1 () ({s with xs := s.xs.swap i j hi hj})⦄
+   swap i j hi hj
+   ⦃Q⦄ := by
+  unfold swap
+  mvcgen
+
+theorem qp_maybeSwap_perm {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi := by omega) :
    ⦃fun s : ST α n => ⌜s.xs = xs⌝⦄
-   qpartition_maybeSwap lt lo hi hlo hhi
+   qp_maybeSwap lt lo hi hlo hhi
    ⦃⇓ pivot => fun s => ⌜Stable s.xs xs lo hi hlo hhi ∧ (s.xs).1.Perm xs.1⌝⦄ := by
   sorry
 
-namespace qpartition_prep
+namespace qp_prep
 theorem nil {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega)(hle : lo ≤ hi := by omega) :
    ⦃⌜True⌝⦄
-   qpartition_prep lt lo hi hlo hhi
+   qp_prep lt lo hi hlo hhi
    ⦃⇓ _ => ⌜True⌝⦄ := by
   sorry
 
 theorem stable {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi := by omega) :
    ⦃fun s : ST α n => ⌜s.xs = xs⌝⦄
-   qpartition_prep lt lo hi hlo hhi
+   qp_prep lt lo hi hlo hhi
    ⦃⇓ pivot => fun s => ⌜Stable s.xs xs lo hi hlo hhi⌝⦄ := by
   sorry
 
 -- @[spec]
 theorem perm {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi := by omega) :
    ⦃fun s : ST α n => ⌜s.xs = xs⌝⦄
-   qpartition_prep lt lo hi hlo hhi
+   qp_prep lt lo hi hlo hhi
    ⦃⇓ pivot => fun s => ⌜(s.xs).1.Perm xs.1⌝⦄ := by
   sorry
-end qpartition_prep
+end qp_prep
 
 -- attribute [sort] Fin.getElem_fin Array.length_toList Array.size_swap List.append_left_inj List.append_right_inj List.length_cons

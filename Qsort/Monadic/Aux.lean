@@ -16,6 +16,8 @@ open Lean.Parser.Term
 open Std.Do
 
 attribute [spred] SPred.and_cons SVal.curry_cons SVal.curry_nil SVal.uncurry_cons SVal.uncurry_nil SPred.and_nil SPred.down_pure
+attribute [lists] List.length_append List.length_cons List.length_nil List.length_range'
+attribute [arith] Nat.add_one_sub_one Nat.div_one Nat.zero_add
 
 macro "mvcgen_aux" : tactic => do
   `(tactic|
@@ -400,3 +402,28 @@ syntax (name := nthassumption) "nthassumption" ident num : tactic
   let tac := liftMetaTactic fun mvarId => withAssignableSyntheticOpaque do mvarId.nthassumption n; pure []
   runInst id tac false
   liftMetaTactic fun mvarId => withAssignableSyntheticOpaque do mvarId.assumption; pure []
+
+-- attribute [-spec] Std.Do.Spec.forIn_range
+
+@[spec]
+theorem Spec.forIn_range' {β : Type u} {m : Type u → Type v} {ps : PostShape}
+    [Monad m] [WPMonad m ps]
+    {xs : Std.Legacy.Range} {init : β} {f : Nat → β → m (ForInStep β)}
+    (inv : Invariant xs.toList β ps)
+    (step : ∀ pref cur suff (h1 : xs.toList = pref ++ cur :: suff) (h2 : pref.length + 1 + suff.length = (xs.stop - xs.start + xs.step - 1) / xs.step) b,
+      Triple
+        (f cur b)
+        (inv.1 (⟨pref, cur::suff, h1.symm⟩, b))
+        (fun r => match r with
+          | .yield b' => inv.1 (⟨pref ++ [cur], suff, by simp [h1]⟩, b')
+          | .done b' => inv.1 (⟨xs.toList, [], by simp⟩, b'), inv.2)) :
+    Triple (forIn xs init f) (inv.1 (⟨[], xs.toList, rfl⟩, init)) (fun b => inv.1 (⟨xs.toList, [], by simp⟩, b), inv.2) := by
+  simp only [Std.Legacy.Range.forIn_eq_forIn_range', Std.Legacy.Range.size]
+  apply Spec.forIn_list inv fun pref cur suff (h1 : xs.toList = pref ++ cur :: suff) =>
+    step pref cur suff h1 (by
+        have hrng_dec_sz : (pref ++ cur :: suff).length = (xs.stop - xs.start + xs.step - 1) / xs.step := by
+          rw [← h1]
+          simp only [List.length_range']
+        rw [List.length_append, List.length_cons] at hrng_dec_sz
+        omega
+      )

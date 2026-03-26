@@ -15,7 +15,7 @@ namespace Monadic.Qpartition
 @[inline] def qpartition (x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 : HP Nat → HP Nat → Nat)
     (lt : α → α → Bool) (lo hi : Nat) (hlo : lo < n) (hhi: hi < n) (hle : lo ≤ hi) :
     StateM (ST α n) $ {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
-  qpartition_prep lt lo hi hlo hhi
+  qp_prep lt lo hi hlo hhi
   let pivot := (← get).xs.get hi hhi
   let mut i : Nat := lo
   let mut j : Nat := lo
@@ -23,13 +23,13 @@ namespace Monadic.Qpartition
     -- FIXME need assertions in place of `sorry`s
     let xs := (← get).xs -- FIXME
     if lt (xs.get (x1 i j) sorry) (xs.get (x2 i j) sorry) then
-      mxs fun xs => xs.swap (x9 i j) (x10 i j) sorry sorry
+      swap (x9 i j) (x10 i j) sorry sorry
       i := x5 i j
       j := x6 i j
     else
       i := x7 i j
       j := x8 i j
-  mxs fun xs => xs.swap (x3 i j) (x4 i j) sorry sorry
+  swap (x3 i j) (x4 i j) sorry sorry
   pure ⟨x13 i j, sorry, sorry⟩
 
 variable {lt : α → α → Bool} 
@@ -69,7 +69,7 @@ theorem sorted
 
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
-  smvcgen [qpartition_prep.stable] invariants
+  smvcgen [qp_prep.stable] invariants
   . ⇓ t => fun s =>
       let sp := t.1;
       let ⟨i, j⟩ := t.2;
@@ -88,9 +88,7 @@ theorem sorted
   case vc5.post.success.post.success =>
     rename_i r _ h
 
-    -- FIXME FIXME these simplifications are related to the use of `Specs.forin_range`, and should be automatically applied whenever that spec is used
-    simp only [List.length_range'] at h
-    simp only [Nat.add_one_sub_one, Nat.div_one] at h
+    simp only [lists, arith] at *
 
     rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
     rcases r with ⟨i, j⟩
@@ -117,15 +115,12 @@ theorem sorted
       rw [Vector.swap.get_other]
       apply hr
       omega
-      -- rw [hj]
       ite j 
         apply lt_of_ne
         assumption
         apply ne_symm
         inst mvar01 assumption
-        -- omega
-        -- omega
-      . false_or_by_contra -- FIXME write an ite_force tactic that does these steps automatically
+      . false_or_by_contra -- FIXME
         apply h
 
         apply eq_comm
@@ -148,20 +143,14 @@ theorem sorted
     omega
 
   . rename_i pref cur suff h' _ _ h _
-    simp only [length_append, length_cons, length_nil, Nat.zero_add]
-
-    rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
-
-    -- simp only [length_append, length_cons, length_nil, Nat.zero_add]
-
-    -- FIXME FIXME both of these properties should be provided by Spec.forIn_range?
+    -- FIXME
     have hrng_dec_sz : (pref ++ cur :: suff).length = hi - lo := by
       rw [← h']
-      simp only [List.length_range', Nat.add_one_sub_one, Nat.div_one]
-    rw [List.length_append, List.length_cons] at hrng_dec_sz
+      simp only [lists, arith]
+    simp only [lists, arith] at *
+    rcases h with ⟨hl, hr, hj, _,  _⟩
 
     and_intros
-    omegas
     apply pred_range_extend
 
     intros x
@@ -209,15 +198,12 @@ theorem sorted
       omegas
 
   . rename_i pref cur suff h' _ _ h _ 
-    simp only [length_append, length_cons, length_nil, Nat.zero_add]
-
-    rcases h with ⟨hl, hr, hj, _,  _⟩ -- FIXME
-
-    -- FIXME FIXME both of these properties should be provided by Spec.forIn_range?
+    -- FIXME
     have hrng_dec_sz : (pref ++ cur :: suff).length = hi - lo := by
       rw [← h']
-      simp only [List.length_range', Nat.add_one_sub_one, Nat.div_one]
-    rw [List.length_append, List.length_cons] at hrng_dec_sz
+      simp only [lists, arith]
+    simp only [lists, arith] at *
+    rcases h with ⟨hl, hr, hj, _,  _⟩
     
     and_intros
     omegas
@@ -231,14 +217,9 @@ theorem sorted
     intros
     omegas
 
-  omegas
-
-  . rename_i h
-    next h' _ _ =>
-    rw [h'] at h -- FIXME should have been automated
-
-    -- FIXME automate
-    dsimp
+  . rename_i h' _ _ h
+    rw [h'] at h
+    simp only [lists, arith] at *
 
     and_intros
     omegas
