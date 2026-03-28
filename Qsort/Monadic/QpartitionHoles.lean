@@ -12,13 +12,12 @@ open List
 
 namespace Monadic.Qpartition
 
-@[inline] def qpartition (x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 : HP Nat → HP Nat → Nat)
+@[inline] def qpartition (x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 : HP Nat → HP Nat → Nat) (x14 : Nat) (x15 : HP Nat → Nat) 
     (lt : α → α → Bool) (lo hi : Nat) (hlo : lo < n) (hhi: hi < n) (hle : lo ≤ hi) :
     StateM (ST α n) $ {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
   qp_prep lt lo hi hlo hhi
-  let pivot := (← get).xs.get hi hhi
-  let mut i : Nat := lo
-  let mut j : Nat := lo
+  let mut i : Nat := x14
+  let mut j : Nat := x15 i
   for _ in [x11 i j:x12 i j] do
     -- FIXME need assertions in place of `sorry`s
     let xs := (← get).xs -- FIXME
@@ -42,9 +41,9 @@ theorem sorted
    (le_trans : ∀ {{a b c}}, ¬lt a b → ¬lt b c → ¬lt a c)
    (lo hi : Nat) (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi)
    :
-   ∃ x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13,
+   ∃ x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15,
    ⦃fun s => ⌜s.xs = xs⌝⦄
-   qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 lt lo hi hlo hhi hle
+   qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 lt lo hi hlo hhi hle
    ⦃⇓ pivot s => ⌜
      (∀ (x : Nat), lo ≤ x → x < pivot.1 → (h : x < n) → ¬lt ((s.xs).get pivot.1 (by omega)) ((s.xs).get x h)) ∧
      (∀ (x : Nat), pivot.1 < x → x ≤ hi → (h : x < n) → ¬lt ((s.xs).get x h) ((s.xs).get pivot.1 (by omega))) ∧
@@ -63,9 +62,14 @@ theorem sorted
   exists? mvar11
   exists? mvar12
   exists? mvar13
+  exists? mvar14
+  exists? mvar15
 
   mvar mvar01 : HP Nat → HP Nat → Nat -- loop invariant mvars
   mvar mvar02 : HP Nat → HP Nat → Nat
+  mvar mvar03 : HP Nat → HP Nat → Nat
+  mvar mvar04 : HP Nat → HP Nat → Nat
+  mvar mvar05 : HP Nat → HP Nat → Nat
 
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
@@ -73,13 +77,13 @@ theorem sorted
   . ⇓ t => fun s =>
       let sp := t.1;
       let ⟨i, j⟩ := t.2;
-      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
+      ⌜(∀ (x : Nat), (?mvar03 i j) ≤ x → x < i → (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
       ∧
       (∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get (?mvar02 i j) hm))
       ∧
       (j = lo + sp.prefix.length)
       ∧
-      (lo ≤ i ∧ j ≤ hi ∧ i ≤ j)
+      ((?mvar04 i j) ≤ i ∧ j ≤ (?mvar05 i j) ∧ i ≤ j)
       ∧
       (Stable s.xs xs lo hi hlo hhi)⌝
 
@@ -100,7 +104,7 @@ theorem sorted
       rw [Vector.swap.get_left]
     rw [Vector.swap.get_other]
     inst mvar4 apply hl
-    omega
+    inst mvar03 omega
     inst mvar13 omega
     omega
     rotate_left
@@ -111,8 +115,7 @@ theorem sorted
     inst mvar02 apply hr
     omega
     rotate_left 1
-    . intros
-      rw [Vector.swap.get_other]
+    . rw [Vector.swap.get_other]
       apply hr
       omega
       ite j 
