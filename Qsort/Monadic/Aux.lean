@@ -17,7 +17,7 @@ open Std.Do
 
 attribute [spred] SPred.and_cons SVal.curry_cons SVal.curry_nil SVal.uncurry_cons SVal.uncurry_nil SPred.and_nil SPred.down_pure
 attribute [lists] List.length_append List.length_cons List.length_nil List.length_range'
-attribute [arith] Nat.add_one_sub_one Nat.div_one Nat.zero_add
+attribute [arith] Nat.add_one_sub_one Nat.div_one Nat.zero_add Nat.add_one_sub_one Nat.le_refl Nat.Simproc.add_sub_add_ge Nat.sub_self Nat.add_zero
 
 macro "mvcgen_aux" : tactic => do
   `(tactic|
@@ -28,7 +28,9 @@ macro "mvcgen_aux" : tactic => do
 
 macro "omegas" : tactic => do
   `(tactic|
-    (all_goals try omega))
+    (all_goals try omega
+     all_goals try trivial
+     all_goals try assumption))
 
 def iteTargetTrans (id : TSyntax `ident) (tac : Syntax) : TacticM Unit := do
   Lean.Elab.Term.withSynthesize <| withMainContext do
