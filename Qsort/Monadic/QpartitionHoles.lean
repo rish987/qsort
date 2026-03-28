@@ -33,6 +33,8 @@ namespace Monadic.Qpartition
 
 variable {lt : α → α → Bool} 
 
+theorem test (a b : Nat) (h : a < b) (h' : b ≤ a) : False := by omega
+
 namespace qpartition
 
 -- set_option trace.Elab.Tactic.Do.vcgen true in
@@ -83,11 +85,9 @@ theorem sorted
       ∧
       (j = lo + sp.prefix.length)
       ∧
-      ((?mvar04 i j) ≤ i ∧ j ≤ (?mvar05 i j) ∧ i ≤ j)
+      ((?mvar04 i j) ≤ i ∧ i ≤ j)
       ∧
       (Stable s.xs xs lo hi hlo hhi)⌝
-
-  omegas
 
   case vc5.post.success.post.success =>
     rename_i r _ h
@@ -140,7 +140,11 @@ theorem sorted
 
       omega
 
-    . apply Vector.swap.stable
+    . rename_i h
+      rcases h
+      apply Vector.swap.stable
+      omega
+      inst mvar04 assumption
       omegas
 
     omega
@@ -225,6 +229,21 @@ theorem sorted
     simp only [lists, arith] at *
 
     and_intros
+
+    intros _ _ hm
+    intros
+    have := Nat.not_le_of_lt hm
+    false_or_by_contra
+    apply this
+    inst mvar14 assumption
+
+    intros _ _ hm
+    intros
+    have := Nat.not_le_of_lt hm
+    false_or_by_contra
+    apply this
+    inst mvar15 assumption
+
     omegas
 
 -- theorem perm {lo : Fin n} {hi : Fin n} (hle : lo ≤ hi := by omega) :
