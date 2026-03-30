@@ -32,6 +32,10 @@ macro "omegas" : tactic => do
      all_goals try trivial
      all_goals try assumption))
 
+macro "sorries" : tactic => do
+  `(tactic|
+    (all_goals try sorry))
+
 def iteTargetTrans (id : TSyntax `ident) (tac : Syntax) : TacticM Unit := do
   Lean.Elab.Term.withSynthesize <| withMainContext do
     let mut toMvarizeDecls : Array LocalDecl := #[]
@@ -208,7 +212,7 @@ syntax (name := inst') "inst'" ident tacticSeq : tactic
 -- marker for "hole parameters"
 abbrev HP : Sort u → Sort u := id
 
- def runInst (id : Name) (tac : TacticM Unit) (rerun : Bool): TacticM Unit := withMainContext $ Tactic.focus do
+def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMainContext $ Tactic.focus do
   let mctx := ← getMCtx
   let some mvar := mctx.findUserName? id | throwError "could not find '{id}' in metavariable context"
   let rec countHPs (e : Expr) (n : Nat) := do
@@ -273,7 +277,8 @@ abbrev HP : Sort u → Sort u := id
   trace[Meta.debug] s!"DBG[35]: Aux.lean:205: newMvar={newMvar}"
   let newMvarLam ← forallBoundedTelescope (← mvar.getType) numHPs fun vs _ => do
     mkLambdaFVars vs newMvar
-  let rep e :=
+
+  let repWithNewMvarLam e : Expr :=
     e.replace fun e =>
       if let .mvar id .. := e then
         if id == mvar then
@@ -282,35 +287,79 @@ abbrev HP : Sort u → Sort u := id
           none
       else
         none
-  let mut newCtx := (← getLCtx)
-  for decl in lctx do
-    unless ← tryReplace decl do continue
-    let newDecl : LocalDecl := match decl with
-      | .cdecl i fv n t b k =>
-        .cdecl i fv n (rep t) b k
-      | .ldecl i fv n t v b k =>
-        .ldecl i fv n (rep t) (rep v) b k
-    -- trace[Meta.debug] s!"DBG[39]: Aux.lean:185 {← ppExpr newDecl.type}"
-    newCtx := newCtx.modifyLocalDecl newDecl.fvarId fun _ => newDecl
-  let newTarget := rep target
+
+  let repLCtx (ctx : LocalContext) (repFn : Expr → Expr) := do
+    let mut newCtx := (ctx)
+    for decl in ctx do
+      unless ← tryReplace decl do continue
+      let newDecl : LocalDecl := match decl with
+        | .cdecl i fv n t b k =>
+          .cdecl i fv n (repFn t) b k
+        | .ldecl i fv n t v b k =>
+          .ldecl i fv n (repFn t) (repFn v) b k
+      -- trace[Meta.debug] s!"DBG[39]: Aux.lean:185 {← ppExpr newDecl.type}"
+      newCtx := newCtx.modifyLocalDecl newDecl.fvarId fun _ => newDecl
+    pure newCtx
+  let newCtx ← repLCtx (← getLCtx) repWithNewMvarLam
+  let newTarget := repWithNewMvarLam target
   let newGoal ← withLCtx' newCtx $ mkFreshExprMVar newTarget
   trace[Meta.debug] s!"DBG[36]: Aux.lean:229: newGoal={newGoal}"
 
   let state ← saveState
   pushGoal newGoal.mvarId!
-  Tactic.focus do
+  let (newMCtx, ret) ← Tactic.focus do
     evalTactic (← `(tactic| try simp only at *))
-    tac
+    let ret ← tac
     while (← getGoals).length > 0 do
       discard popMainGoal
+    pure (← getMCtx, ret)
 
   unless (← newMvar.mvarId!.isAssigned) do throwError "failed to assign `{mvar}` through unification"
   let assignment ← instantiateMVars newMvar
+  
   trace[Meta.debug] s!"DBG[34]: Aux.lean:238: assignment={assignment}"
   state.restore
 
+  -- setMCtx newMCtx
+  let oldMCtx ← getMCtx
+  let mut newMVars : Std.HashMap MVarId (Name × MVarId) := default
+  let mut counter : Nat := 0
+  for (mvar, _) in newMCtx.decls do
+    if not (oldMCtx.decls.contains mvar) then
+      let name := id.toString ++ s!"_{counter}" |>.toName
+      newMVars := newMVars.insert mvar (name, ← mkFreshMVarId)
+      counter := counter + 1
+
+  let rep (e : Expr) : Expr :=
+    e.replace fun e =>
+      if let .mvar id .. := e then
+        if let some (_, newId) := newMVars.get? id then
+          Expr.mvar newId
+        else
+          none
+      else
+        none
+
+  for (oldId, decl) in newMCtx.decls do
+    if let some (name, newId) := newMVars.get? oldId then
+      let newType := rep decl.type
+      let newLctx ← repLCtx decl.lctx rep
+      modifyMCtx fun mctx =>
+      { mctx with
+        mvarCounter := mctx.mvarCounter + 1
+        decls       := mctx.decls.insert newId { decl with
+          depth := mctx.depth
+          index := mctx.mvarCounter
+          userName := name
+          lctx := newLctx
+          type := newType
+        }
+        userNames := if name.isAnonymous then mctx.userNames else mctx.userNames.insert name newId }
+        -- mctx.addExprMVarDecl (mvarId : MVarId) (userName : Name) (lctx : LocalContext) (localInstances : LocalInstances) (type : Expr) (kind : MetavarKind := MetavarKind.natural) (numScopeArgs : Nat := 0) : MetavarContext :=
+
+  let repAssignment := rep assignment
   forallBoundedTelescope (← mvar.getType) numHPs fun vs _ => do
-    let mut absAssignment := assignment
+    let mut absAssignment := repAssignment
     for (arg, fvar) in mvarAppArgs.zip vs do
       absAssignment := absAssignment.replace fun e =>
         if e == arg then
@@ -319,10 +368,13 @@ abbrev HP : Sort u → Sort u := id
     let val ← mkLambdaFVars vs absAssignment
     try
       mvar.assign val
+      trace[Meta.debug] s!"assigned {mvar.name} := {val}"
     catch _ =>
       throwError  "assignment `{mvar} := {← ppExpr val}` failed (from application {mvarAppArgs})"
   if rerun then
     tac
+  else
+    pure ret
 
 @[tactic inst] def evalInst : Tactic := fun stx => withMainContext $ Tactic.focus do
   let id : Name := (TSyntax.mk stx[1]).getId
@@ -334,32 +386,46 @@ abbrev HP : Sort u → Sort u := id
   let tac   := stx[2]
   runInst id (evalTactic tac) false
 
-/-- Return the `n`th local declaration whose type is definitionally equal to `type`. -/
-def findNthLocalDeclWithType? (type : Expr) (n : Nat) : StateRefT Nat MetaM (Option FVarId) := do
-  (← getLCtx).findDeclRevM? fun localDecl => do
-    if localDecl.isImplementationDetail then
-      return none
-    else
-      let state ← saveState
-      if (← isDefEq type localDecl.type) then
-        if (← get) == n then
-          trace[Meta.debug] s!"success"
-          return some localDecl.fvarId
-        state.restore
-        modify fun n => n + 1
-        return none
-      return none
+/-- Return the `n`th local declaration (counting backwards) whose type is definitionally equal to `type`. -/
+def findNthLocalDeclWithType? (type : Expr) (n : Nat) : MetaM (Option (FVarId × Nat)) := do
+  let mut curr_n := 1
+  let mut idx := (← getLCtx).decls.toArray.size - 1
+  for localDecl? in (← getLCtx).decls.toArray.reverse do
+    if let some localDecl := localDecl? then
+      if not localDecl.isImplementationDetail then
+        -- if let some mvarId := (← getMCtx).findUserName? `mvar13 then
+        --   trace[Meta.debug] s!"found: {mvarId.name}, {← mvarId.isAssigned}"
+        let state : Meta.SavedState ← saveState
+        if (← isDefEq type localDecl.type) then
+          if curr_n == n then
+            trace[Meta.debug] s!"success: {← ppExpr localDecl.type}, {localDecl.type}"
+            -- if let some mvarId := (← getMCtx).findUserName? `mvar13 then
+            --   trace[Meta.debug] s!"found: {mvarId.name}, {← mvarId.isAssigned}"
+            return some (localDecl.fvarId, idx)
+          else 
+            trace[Meta.debug] s!"failure: {← ppExpr localDecl.type}, {localDecl.type}"
+            -- if let some mvarId := (← getMCtx).findUserName? `mvar13 then
+            --   trace[Meta.debug] s!"found: {mvarId.name}, {← mvarId.isAssigned}"
+            state.restore
+            curr_n := curr_n + 1
+        else 
+          state.restore
+    idx := idx - 1
+  pure none
 
-def _root_.Lean.MVarId.nthassumptionCore (mvarId : MVarId) (n : Nat) : MetaM Bool :=
+def _root_.Lean.MVarId.nthassumptionCore (mvarId : MVarId) (n : Nat) : MetaM (Option Nat) :=
   mvarId.withContext do
     mvarId.checkNotAssigned `nthassumption
-    match (← findNthLocalDeclWithType? (← mvarId.getType) n |>.run 1).1 with
-    | none => return false
-    | some fvarId => mvarId.assign (mkFVar fvarId); return true
+    match (← findNthLocalDeclWithType? (← mvarId.getType) n) with
+    | none => return none
+    | some (fvarId, idx) =>
+      -- trace[Meta.debug] s!"found: {← fvarId.getUserName}: {← ppExpr (← fvarId.getType)}"
+      mvarId.assign (mkFVar fvarId); return idx
 
-def _root_.Lean.MVarId.nthassumption (mvarId : MVarId) (n : Nat) : MetaM Unit :=
-  unless (← mvarId.nthassumptionCore n) do
+def _root_.Lean.MVarId.nthassumption (mvarId : MVarId) (n : Nat) : MetaM Nat := do
+  let some idx := (← mvarId.nthassumptionCore n) |
     throwTacticEx `nthassumption mvarId
+  pure idx
 
 /--
 `nthassumption mvar n` behaves much like `inst mvar assumption`,
@@ -401,9 +467,16 @@ syntax (name := nthassumption) "nthassumption" ident num : tactic
 @[tactic nthassumption] def evalNthAssumption : Tactic := fun stx => do
   let id := (TSyntax.mk stx[1]).getId
   let n := (TSyntax.mk stx[2]).getNat
-  let tac := liftMetaTactic fun mvarId => withAssignableSyntheticOpaque do mvarId.nthassumption n; pure []
-  runInst id tac false
-  liftMetaTactic fun mvarId => withAssignableSyntheticOpaque do mvarId.assumption; pure []
+  let tac := liftMetaTacticAux fun mvarId => do let ret ← mvarId.nthassumption n; pure (ret, [])
+  let ret ← runInst id tac false
+  -- trace[Meta.debug] s!"HERE 2: {ret}, {← ppExpr hyp.type}"
+  --   let some hyp := (← getLCtx).decls[ret]! | unreachable!
+  liftMetaTactic fun mvarId => do
+    trace[Meta.debug] s!"HERE 1: {ret}, {(← getLCtx).size}"
+    let some hyp := (← getLCtx).decls[ret]! | unreachable!
+    trace[Meta.debug] s!"HERE 2: {ret}, {← ppExpr hyp.type}"
+    mvarId.assign hyp.toExpr
+    pure []
 
 -- attribute [-spec] Std.Do.Spec.forIn_range
 
