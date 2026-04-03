@@ -33,6 +33,9 @@ namespace Monadic.Qpartition
 
 variable {lt : α → α → Bool} 
 
+-- theorem sub_one_le (n : Nat) : n - 1 ≤ n := by omega
+-- -- theorem lt_succ_of_dec_lt (n m : Nat) (h : n - 1 < m) : (n - 1 ≤ n) := by omega
+
 theorem test (a b : Nat) (h : a < b) (h' : b ≤ a) : False := by omega
 
 namespace qpartition
@@ -71,6 +74,7 @@ theorem sorted
   mvar mvar02 : HP Nat → HP Nat → Nat
   mvar mvar03 : HP Nat → HP Nat → Nat
   mvar mvar04 : HP Nat → HP Nat → Nat
+  mvar mvar05 : HP Nat → HP Nat → Nat
 
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
@@ -82,7 +86,7 @@ theorem sorted
       ∧
       (∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get (?mvar02 i j) hm))
       ∧
-      (j = lo + sp.prefix.length)
+      (j = ?mvar05 i j + sp.prefix.length)
       ∧
       ((?mvar04 i j) ≤ i ∧ i ≤ j)
       ∧
@@ -98,32 +102,64 @@ theorem sorted
     simp only at * -- FIXME
     
     and_intros
-    intro x
-    intros
-    inst mvar3
-      rw [Vector.swap.get_left]
-    ite x rw [Vector.swap.get_right]
-    apply hl
-    inst' mvar03 apply Nat.succ_le_of_lt
-    apply Nat.succ_le_of_lt
-    nthassumption mvar03_0 2
+    . intro x
+      intros
+      inst mvar3
+        rw [Vector.swap.get_left]
+      ite x rw [Vector.swap.get_right]
+      apply hl
+      inst' mvar03 apply Nat.succ_le_of_lt
+      apply Nat.succ_le_of_lt
+      nthassumption mvar03_1 2
 
-    rw [Vector.swap.get_other]
-    inst mvar4 apply hl
-    inst mvar03 assumption
-    inst mvar13 assumption
-    omega
-    rotate_left
+      inst mvar13 apply Nat.sub_one_lt
+      apply Nat.ne_zero_of_lt
+      apply Nat.lt_of_lt_of_le
+      rename_i h1 h2 --FIXME
+      exact h1
+      apply sub_one_le
+
+      rw [Vector.swap.get_other]
+      apply hl
+      -- inst mvar4 apply hl FIXME stack overflow?
+      apply Nat.succ_le_of_lt
+      apply Nat.lt_of_le_of_ne
+      rename_i h1 _ _ --FIXME
+      inst mvar4 exact h1
+      assumption
+      omegas
+    -- rotate_left
 
     intros x _ _ _ -- FIXME
     rw [Vector.swap.get_left]
     ite x rw [Vector.swap.get_right]
-    inst mvar02 apply hr
-    omega
-    rotate_left 1
+    . false_or_by_contra
+      apply Nat.not_le_of_lt
+      rotate_left
+      rename_i h1 _ _ _ _ --FIXME
+      exact h1.1
+      inst mvar04 apply lt_succ_of_dec_lt
+      inst mvar04_1 assumption
+    -- sorries
+    -- rotate_left 1
     . rw [Vector.swap.get_other]
-      apply hr
+      inst mvar02 apply hr
       omega
+      apply Nat.lt_of_le_pred
+      omega
+      rename_i h1 _
+      have ?m : Nat := ?mv -- FIXME automate these steps
+      have : j.pred = ?m := ?mp
+      rw [this]
+      exact h1
+      rw [hj]
+      rw [Nat.pred_eq_sub_one]
+      inst mvar05 rw [Nat.succ_add_sub_one]
+      -- inst mvar11 inst mvar12 rw [Nat.add_sub_add_right]
+      rw [Nat.add_sub_add_right]
+      inst mp.m rw [Nat.add_sub_of_le]
+      simp
+      omegas
       ite j 
         apply lt_of_ne
         assumption

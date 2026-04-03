@@ -112,7 +112,7 @@ theorem sorted
       ∧
       j = lo + 1 + sp.prefix.length
       ∧
-      (lo + 1 ≤ i ∧ j ≤ hi + 1 ∧ i ≤ j)
+      (lo + 1 ≤ i ∧ i ≤ j)
       ∧
       Stable s.xs xs lo hi⌝
 
@@ -208,11 +208,21 @@ theorem sorted
     intros x _ _ _ -- FIXME
     rw [Vector.swap.get_left]
     ite x rw [Vector.swap.get_right]
-    apply hr
     omegas
     . intros
       . rw [Vector.swap.get_other]
         apply hr
+        omega
+        apply Nat.lt_of_le_pred
+        omega
+        rename_i r _ _ _ _ _ h1
+        have ?m : Nat := ?mv
+        have : r.snd.pred = ?m := ?mp
+        rw [this]
+        exact h1
+        rw [hj]
+        rw [Nat.pred_eq_sub_one]
+        rw [Nat.succ_add_sub_one]
         omegas
 
 theorem perm {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi := by omega) :

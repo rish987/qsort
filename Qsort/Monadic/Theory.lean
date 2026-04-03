@@ -79,6 +79,9 @@ theorem eq_trans (i j k : Nat) (h1 : i = j) (h2 : j = k) : i = k := by sorry
 theorem eq_comm (i j : Nat) (h : i = j) : j = i := by sorry
 theorem add_sub (i j : Nat) (h : i ≤ j) : i + (j - i) = j := by sorry
 
+theorem sub_one_le (n : Nat) : n - 1 ≤ n := by omega
+theorem lt_succ_of_dec_lt (n m : Nat) (h : n - 1 < m) : n < m + 1 := by omega
+
 namespace Vector
 
 namespace swap
