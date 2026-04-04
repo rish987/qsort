@@ -1,4 +1,5 @@
 import Qsort.Monadic.Simp
+import Qsort.Monadic.MVarDeps
 import Std.Tactic.Do
 import Init.Tactics
 import Lean.Elab.Tactic.Basic
@@ -310,39 +311,53 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
   let (newMCtx, ret) ← Tactic.focus do
     evalTactic (← `(tactic| try simp only at *))
     let ret ← tac
-    while (← getGoals).length > 0 do
-      discard popMainGoal
+    -- while (← getGoals).length > 0 do
+    --   discard popMainGoal
     pure (← getMCtx, ret)
 
   unless (← newMvar.mvarId!.isAssigned) do throwError "failed to assign `{mvar}` through unification"
   let assignment ← instantiateMVars newMvar
+
+  -- let assignmentMvars := assignment.collectMVars default |>.result
+  trace[Meta.debug] s!"BEFORE: {assignment}"
+  let assignmentMvarDeps ← assignment.myGetMVarDependencies
+  -- ^ FIXME what about assigned mvars? Need to create copies of all mvars with types/assignments fully instantiated?
+  trace[Meta.debug] s!"AFTER"
   
-  trace[Meta.debug] s!"DBG[34]: Aux.lean:238: assignment={assignment}"
+  -- trace[Meta.debug] s!"DBG[34]: Aux.lean:238: assignment={assignment}"
   state.restore
 
-  -- setMCtx newMCtx
   let oldMCtx ← getMCtx
-  let mut newMVars : Std.HashMap MVarId (Name × MVarId) := default
+  let mut newMVars : Std.HashMap MVarId (Name × MVarId × Expr × Expr) := default
   let mut counter : Nat := 0
-  for (mvar, _) in newMCtx.decls do
-    if not (oldMCtx.decls.contains mvar) then
+  for (mv, decl) in newMCtx.decls do
+    if not (oldMCtx.decls.contains mv) && assignmentMvarDeps.contains mv then
       let name := id.toString ++ s!"_{counter}" |>.toName
-      newMVars := newMVars.insert mvar (name, ← mkFreshMVarId)
+      trace[Meta.debug] s!"name: {name}, origName: {decl.userName}"
+      let id ← mkFreshMVarId
+      -- let (e, type) ← if assignmentMvarsDeps.contains mv then
+      let (e, type) ← forallBoundedTelescope (← mvar.getType) numHPs fun vs _ => do
+        let type ← mkForallFVars vs decl.type -- FIXME decl.type may depend on mvarAppArgs, should abstract?
+        let e := mkAppN (.mvar id) mvarAppArgs
+        pure (e, type)
+        -- else
+        --   pure (.mvar id, decl.type)
+      newMVars := newMVars.insert mv (name, id, e, type)
       counter := counter + 1
 
   let rep (e : Expr) : Expr :=
     e.replace fun e =>
       if let .mvar id .. := e then
-        if let some (_, newId) := newMVars.get? id then
-          Expr.mvar newId
+        if let some (_, _, e, _) := newMVars.get? id then
+          e
         else
           none
       else
         none
 
   for (oldId, decl) in newMCtx.decls do
-    if let some (name, newId) := newMVars.get? oldId then
-      let newType := rep decl.type
+    if let some (name, newId, e, type) := newMVars.get? oldId then
+      let newType := rep type
       let newLctx ← repLCtx decl.lctx rep
       modifyMCtx fun mctx =>
       { mctx with

@@ -110,7 +110,7 @@ theorem sorted
       apply hl
       inst' mvar03 apply Nat.succ_le_of_lt
       apply Nat.succ_le_of_lt
-      nthassumption mvar03_1 2
+      nthassumption mvar03_0 2
 
       inst mvar13 apply Nat.sub_one_lt
       apply Nat.ne_zero_of_lt
@@ -138,58 +138,68 @@ theorem sorted
       rotate_left
       rename_i h1 _ _ _ _ --FIXME
       exact h1.1
+      -- set_option trace.Meta.debug true in
+      -- set_option diagnostics true in
       inst mvar04 apply lt_succ_of_dec_lt
-      inst mvar04_1 assumption
+      inst mvar04_0 assumption
     -- sorries
     -- rotate_left 1
     . rw [Vector.swap.get_other]
+      omegas
       inst mvar02 apply hr
       omega
       apply Nat.lt_of_le_pred
       omega
       rename_i h1 _
-      have ?m : Nat := ?mv -- FIXME automate these steps
-      have : j.pred = ?m := ?mp
+      let m : Nat := ?mv -- FIXME automate these steps
+      have : j.pred = m := ?mp
+      simp only [m] at *
       rw [this]
-      exact h1
+      inst mv exact h1
       rw [hj]
       rw [Nat.pred_eq_sub_one]
       inst mvar05 rw [Nat.succ_add_sub_one]
       -- inst mvar11 inst mvar12 rw [Nat.add_sub_add_right]
-      rw [Nat.add_sub_add_right]
-      inst mp.m rw [Nat.add_sub_of_le]
-      simp
-      omegas
-      ite j 
-        apply lt_of_ne
-        assumption
-        apply ne_symm
-        inst mvar01 assumption
-      . false_or_by_contra -- FIXME
-        apply h
-
-        apply eq_comm
-        apply eq_trans
-        exact hj
-        inst mvar11 inst mvar12 apply add_sub
-        assumption
-      omega
-      omega
-    rotate_right
-    ite j assumption
-    . false_or_by_contra -- FIXME
-      apply h
-
-      omega
+      -- set_option trace.Meta.debug true in
+      inst mvar12 inst mvar11 rw [Nat.add_sub_add_right]
+      inst mvar05_0 rw [Nat.add_sub_of_le]
+      simp only [m] at *
+      inst mvar12_0 rfl
+      inst mvar11_0 exact hle
+      -- ite j 
+      --   apply lt_of_ne
+      --   assumption
+      --   apply ne_symm
+      --   inst mvar01 assumption
+      -- . false_or_by_contra -- FIXME
+      --   apply h
+      --
+      --   apply eq_comm
+      --   apply eq_trans
+      --   exact hj
+      --   inst mvar11 inst mvar12 apply add_sub
+      --   assumption
+      -- omega
+      -- omega
+    -- rotate_right
+    -- ite j assumption
+    -- . false_or_by_contra -- FIXME
+    --   apply h
+    --
+    --   omega
 
     . rename_i h
       rcases h
       apply Vector.swap.stable
       omega
+      sorry
+      set_option pp.all true in
+      rw [Nat.succ_eq_add_one] at hj
+      omega
       inst mvar04 assumption
       omegas
 
-    omega
+    -- omega
 
   sorries
   . rename_i pref cur suff h' _ _ h _

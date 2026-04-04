@@ -223,6 +223,7 @@ theorem sorted
         rw [hj]
         rw [Nat.pred_eq_sub_one]
         rw [Nat.succ_add_sub_one]
+        rw [Nat.add_sub_of_le]
         omegas
 
 theorem perm {lo hi : Nat} (hlo : lo < n := by omega) (hhi : hi < n := by omega) (hle : lo ≤ hi := by omega) :
