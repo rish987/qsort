@@ -151,9 +151,8 @@ theorem sorted
       apply Nat.lt_of_le_pred
       omega
       rename_i h1 _
-      let m : Nat := ?mv -- FIXME automate these steps
-      have : j.pred = m := ?mp
-      simp only [m] at *
+      -- let m : Nat := ?mv -- FIXME automate these steps
+      have : j.pred = ?mv := ?mp
       rw [this]
       inst mv exact h1
       rw [hj]
@@ -161,10 +160,11 @@ theorem sorted
       inst mvar05 rw [Nat.succ_add_sub_one]
       -- inst mvar11 inst mvar12 rw [Nat.add_sub_add_right]
       -- set_option trace.Meta.debug true in
-      inst mvar12 inst mvar11 rw [Nat.add_sub_add_right]
+      inst mvar12 inst mvar11 rw [Nat.add_sub_add_right] -- FIXME mvar12_0 should only take 2 args; need `inst` to take multiple args
       inst mvar05_0 rw [Nat.add_sub_of_le]
-      simp only [m] at *
-      inst mvar12_0 rfl
+      inst mvar12_1 rfl
+      -- have : ?mvar12_0 ?mvar14 (?mvar15 ?mvar14) = ?mx := by
+      --   sorry
       inst mvar11_0 exact hle
       -- ite j 
       --   apply lt_of_ne
@@ -192,12 +192,17 @@ theorem sorted
       rcases h
       apply Vector.swap.stable
       omega
-      sorry
-      set_option pp.all true in
-      rw [Nat.succ_eq_add_one] at hj
       omega
-      inst mvar04 assumption
+      -- set_option pp.all true in
+      -- have : (?mvar12_0 ?mvar14 (?mvar15 ?mvar14) ?mvar14 (?mvar15 ?mvar14)) = 1 := by
+      --   inst mvar12_0 rfl
+      -- let mx : Nat := ?mv -- FIXME automate these steps
+      -- set_option trace.Meta.isDefEq true in
+      -- rw [Nat.succ_eq_add_one] at hj
+      -- have : j = hi + 1 := by omega
       omegas
+      -- inst mvar04 assumption
+      -- omegas
 
     -- omega
 

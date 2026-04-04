@@ -226,7 +226,9 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
     | _ => 
       pure n
   let type ← mvar.getType
+  let mvarLCtx := (← mvar.getDecl).lctx
   let numHPs ← countHPs type 0
+  -- trace[Meta.debug] s!"numHPs: {numHPs}, {type}"
   let lctx ← getLCtx
   let target ← getMainTarget
 
@@ -334,15 +336,17 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
     if not (oldMCtx.decls.contains mv) && assignmentMvarDeps.contains mv then
       let name := id.toString ++ s!"_{counter}" |>.toName
       trace[Meta.debug] s!"name: {name}, origName: {decl.userName}"
-      let id ← mkFreshMVarId
+      let newId ← mkFreshMVarId
       -- let (e, type) ← if assignmentMvarsDeps.contains mv then
       let (e, type) ← forallBoundedTelescope (← mvar.getType) numHPs fun vs _ => do
         let type ← mkForallFVars vs decl.type -- FIXME decl.type may depend on mvarAppArgs, should abstract?
-        let e := mkAppN (.mvar id) mvarAppArgs
+        let e := mkAppN (.mvar newId) mvarAppArgs
+        -- trace[Meta.debug] s!"{id.toString} numHPs: {vs.size}, {decl.type}, {type}, {e}"
+        trace[Meta.debug] s!"{name} origName: {mv.name} origType: {decl.type}"
         pure (e, type)
         -- else
         --   pure (.mvar id, decl.type)
-      newMVars := newMVars.insert mv (name, id, e, type)
+      newMVars := newMVars.insert mv (name, newId, e, type)
       counter := counter + 1
 
   let rep (e : Expr) : Expr :=
@@ -358,7 +362,10 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
   for (oldId, decl) in newMCtx.decls do
     if let some (name, newId, e, type) := newMVars.get? oldId then
       let newType := rep type
-      let newLctx ← repLCtx decl.lctx rep
+      let newLctx := mvarLCtx
+      trace[Meta.debug] s!"{name} type: {type}"
+      trace[Meta.debug] s!"{name} newType: {newType}"
+      -- let newLctx ← repLCtx decl.lctx rep -- FIXME is this necessary?
       modifyMCtx fun mctx =>
       { mctx with
         mvarCounter := mctx.mvarCounter + 1
@@ -400,6 +407,11 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
   let id : Name := (TSyntax.mk stx[1]).getId
   let tac   := stx[2]
   runInst id (evalTactic tac) false
+
+-- syntax (name := rectx) "rectx" ident : tactic
+-- @[tactic rectx] def evalRectx : Tactic := fun stx => withMainContext $ Tactic.focus do
+--   let id : Name := (TSyntax.mk stx[1]).getId
+--   runInst id
 
 /-- Return the `n`th local declaration (counting backwards) whose type is definitionally equal to `type`. -/
 def findNthLocalDeclWithType? (type : Expr) (n : Nat) : MetaM (Option (FVarId × Nat)) := do
