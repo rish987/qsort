@@ -47,10 +47,11 @@ theorem sorted
    ⦃fun s => ⌜s.xs = xs⌝⦄
    qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 lt lo hi hlo hhi hle
    ⦃⇓ pivot s => ⌜
-     (∀ (x : Nat), lo ≤ x → x < pivot.1 → (h : x < n) → ¬lt ((s.xs).get pivot.1 (by omega)) ((s.xs).get x h)) ∧
+     (∀ (x : Nat), RangePred lo pivot.1 fun x => (h : x < n) → ¬lt ((s.xs).get pivot.1 (by omega)) ((s.xs).get x h)) ∧
      (∀ (x : Nat), pivot.1 < x → x ≤ hi → (h : x < n) → ¬lt ((s.xs).get x h) ((s.xs).get pivot.1 (by omega))) ∧
      Stable s.xs xs lo hi hlo hhi
    ⌝⦄ := by
+  sorries
   exists? mvar1
   exists? mvar2
   exists? mvar3
@@ -80,6 +81,7 @@ theorem sorted
       let sp := t.1;
       let ⟨i, j⟩ := t.2;
       ⌜(∀ (x : Nat), (?mvar03 i j) ≤ x → x < i → (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
+      -- ⌜(∀ (t : (x : Nat) ×' (?mvar03 i j) ≤ x ×' x < i ×' (hx : x < n) ×' ((?mvar01 i j) < n)), ¬ lt ((s.xs).get (?mvar01 i j) t.2.2.2.2) ((s.xs).get t.1 t.2.2.2.1))
       ∧
       (∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get (?mvar02 i j) hm))
       ∧
@@ -99,11 +101,21 @@ theorem sorted
     simp only at * -- FIXME
     
     and_intros
+    intros x
     intros
     inst mvar3
       rw [Vector.swap.get_left]
     rw [Vector.swap.get_other]
-    inst mvar4 apply hl
+    -- inst mvar01 refine hl (.mk x ?_)
+    -- refine (.mk ?_ ?_) -- FIXME
+    -- inst mvar03 omega
+    -- refine (.mk ?_ ?_) -- FIXME
+    -- inst mvar13 omega
+    -- refine (.mk ?_ ?_) -- FIXME
+    -- sorry
+    -- ^ FIXME get proof from program (last arg to last swap call)?
+    -- (normally this would be done automatically w/ apply)
+    inst mvar01 apply hl
     inst mvar03 omega
     inst mvar13 omega
     omega
@@ -122,7 +134,7 @@ theorem sorted
         apply lt_of_ne
         assumption
         apply ne_symm
-        inst mvar01 assumption
+        inst mvar4 assumption
       . false_or_by_contra -- FIXME
         apply h
 
@@ -159,6 +171,11 @@ theorem sorted
 
     and_intros
     apply pred_range_extend
+    -- rename_i b s _ _ _
+    -- rcases b with ⟨i, j⟩
+    -- dsimp
+    -- set_option trace.Meta.isDefEq true in
+    -- refine pred_range_extend_tup' (Q := fun x => (_ : x < n) ×' hi < n) lo _ (?mvar5 i j) ?_ ?_
 
     intros x
     intros

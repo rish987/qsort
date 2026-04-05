@@ -70,8 +70,8 @@ theorem sorted
    qpartition lt lo hi hlo hhi hle
    ⦃⇓ pivot => fun s => ⌜
      Stable s.xs xs lo hi ∧
-     (∀ (i : Nat) (h : i < n), i < pivot.1 → i ≥ lo → ¬lt ((s.xs).get pivot.1 (by omega)) ((s.xs).get i h)) ∧
-     (∀ (i : Nat) (h : i < n), i > pivot.1 → i ≤ hi → ¬lt ((s.xs).get i h) ((s.xs).get pivot.1 (by omega)))⌝⦄ := by
+     (RangePred lo pivot.1 fun i => (h : i < n) → ¬lt ((s.xs).get pivot.1 (by omega)) ((s.xs).get i h)) ∧
+     (RangePred (pivot.1 + 1) (hi + 1) fun i => (h : i < n) → ¬lt ((s.xs).get i h) ((s.xs).get pivot.1 (by omega)))⌝⦄ := by
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
   -- mintro h
@@ -106,9 +106,9 @@ theorem sorted
   -- mspec
   smvcgen [qp_prep.stable] invariants
   . ⇓ (sp, ⟨i, j⟩) => fun s =>
-      ⌜(∀ (x : Nat), lo ≤ x → x < i → (hx : x < n) → ¬ lt ((s.xs).get hi hhi) ((s.xs).get x hx))
+      ⌜RangePred lo i (fun x => (hx : x < n) → ¬ lt ((s.xs).get hi hhi) ((s.xs).get x hx))
       ∧
-      (∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get hi hhi))
+      RangePred i j (fun x => (hx : x < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get hi hhi))
       ∧
       j = lo + sp.prefix.length
       ∧
@@ -131,6 +131,8 @@ theorem sorted
     apply pred_range_extend
     intros x
     intros
+    intros -- FIXME use a special theorem w/ RangePred to avoid this
+    -- sorries
     . rw [Vector.swap.get_other]
       rw [Vector.swap.get_other]
       apply hl
@@ -144,6 +146,7 @@ theorem sorted
     apply pred_range_extend
     intros x
     intros
+    intros -- FIXME
     . rw [Vector.swap.get_other]
       rw [Vector.swap.get_other]
       apply hr
@@ -171,6 +174,7 @@ theorem sorted
     apply pred_range_extend
     . intros x
       intros
+      intros
       apply hr
       omegas
     apply pred_range_single
@@ -193,6 +197,9 @@ theorem sorted
     and_intros
     rotate_left
     . intros
+      unfold RangePred -- FIXME
+      intros
+      intros -- FIXME
       rw [Vector.swap.get_left]
       rw [Vector.swap.get_other]
       apply hl

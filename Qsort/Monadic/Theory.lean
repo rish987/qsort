@@ -52,17 +52,30 @@ def Stable (as bs : Vector α n) (lo hi : Nat) (hlo : lo < n := by omega) (hhi :
 def Perm (as bs : Vector α n) : Prop :=
   as.1.Perm bs.1
 
-theorem pred_range_single {P : Nat → Prop} (i : Nat) (h : P i)
-   : ∀ j, i ≤ j → j < i + 1 → P j := by
+abbrev RangePred (lo hi : Nat) (P : Nat → Prop ) : Prop := 
+  ∀ (i : Nat), lo ≤ i → i < hi → P i
+
+theorem pred_range_single {P : Nat → Prop} (i : Nat) (h : P i) : RangePred i (i + 1) P := by
   intros j
   intros
   have : i = j := by omega
   subst this
   assumption
 
+-- theorem pred_range_extend' {P : Nat → Prop} {Q : Nat → Sort u} (lo mid hi : Nat)
+--    (h1 : ∀ j, lo ≤ j → j < mid → j < hi → Q j → P j)
+--    (h2 : ∀ j, mid ≤ j → j < hi → lo ≤ j → Q j → P j) : ∀ j, lo ≤ j → j < hi → Q j → P j := by
+--   intro j _ _
+--   if _ : j < mid then
+--     apply h1
+--     omegas
+--   else
+--     apply h2
+--     omegas
+
 theorem pred_range_extend {P : Nat → Prop} (lo mid hi : Nat)
-   (h1 : ∀ j, lo ≤ j → j < mid → j < hi → P j)
-   (h2 : ∀ j, mid ≤ j → j < hi → lo ≤ j → P j) : ∀ j, lo ≤ j → j < hi → P j := by
+   (h1 : RangePred lo mid fun j => j < hi → P j)
+   (h2 : RangePred mid hi fun j => lo ≤ j → P j) : RangePred lo hi P := by
   intro j _ _
   if _ : j < mid then
     apply h1
@@ -70,6 +83,30 @@ theorem pred_range_extend {P : Nat → Prop} (lo mid hi : Nat)
   else
     apply h2
     omegas
+
+-- theorem pred_range_extend_tup' {P : Nat → Prop} {Q : Nat → Sort u} (lo mid hi : Nat)
+--    (h1 : ∀ t : ((j : Nat) ×' lo ≤ j ×' j < mid ×' j < hi ×' Q j), P t.1)
+--    (h2 : ∀ t : ((j : Nat) ×' mid ≤ j ×' j < hi ×' lo ≤ j ×' Q j), P t.1) : ∀ t : ((j : Nat) ×' lo ≤ j ×' j < hi ×' Q j), P t.1 := by
+--   intro t
+--   rcases t with ⟨_, _, _, _⟩
+--   apply (pred_range_extend' lo mid hi)
+--   . intros j' h1' h2' h3' h4'
+--     exact h1 ⟨j', h1', h2', h3', h4'⟩
+--   . intros j' h1' h2' h3' h4'
+--     exact h2 ⟨j', h1', h2', h3', h4'⟩
+--   omegas
+--
+-- theorem pred_range_extend_tup {P : Nat → Prop} (lo mid hi : Nat)
+--    (h1 : ∀ t : ((j : Nat) ×' lo ≤ j ×' j < mid ×' j < hi), P t.1)
+--    (h2 : ∀ t : ((j : Nat) ×' mid ≤ j ×' j < hi ×' lo ≤ j), P t.1) : ∀ t : ((j : Nat) ×' lo ≤ j ×' j < hi), P t.1 := by
+--   intro t
+--   rcases t with ⟨_, _, _⟩
+--   apply (pred_range_extend lo mid hi)
+--   . intros j' h1' h2' h3'
+--     exact h1 ⟨j', h1', h2', h3'⟩
+--   . intros j' h1' h2' h3'
+--     exact h2 ⟨j', h1', h2', h3'⟩
+--   omegas
 
 theorem ne_of_lt (i j : Nat) (h : i < j) : ¬ i = j := by sorry
 

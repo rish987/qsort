@@ -83,6 +83,7 @@ theorem sorted
       let sp := t.1;
       let ⟨i, j⟩ := t.2;
       ⌜(∀ (x : Nat), (?mvar03 i j) ≤ x → x < i → (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
+      -- ⌜(∀ (t : (x : Nat) ×' (?mvar03 i j) ≤ x ×' x < i ×' (hx : x < n) ×' ((?mvar01 i j) < n)), ¬ lt ((s.xs).get (?mvar01 i j) t.2.2.2.2) ((s.xs).get t.1 t.2.2.2.1))
       ∧
       (∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get (?mvar02 i j) hm))
       ∧
@@ -107,7 +108,8 @@ theorem sorted
       inst mvar3
         rw [Vector.swap.get_left]
       ite x rw [Vector.swap.get_right]
-      apply hl
+      inst mvar01 apply hl
+      -- inst mvar01 refine hl (?
       inst' mvar03 apply Nat.succ_le_of_lt
       apply Nat.succ_le_of_lt
       nthassumption mvar03_0 2
