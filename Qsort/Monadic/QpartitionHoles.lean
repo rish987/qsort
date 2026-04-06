@@ -47,11 +47,10 @@ theorem sorted
    ⦃fun s => ⌜s.xs = xs⌝⦄
    qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 lt lo hi hlo hhi hle
    ⦃⇓ pivot s => ⌜
-     (∀ (x : Nat), RangePred lo pivot.1 fun x => (h : x < n) → ¬lt ((s.xs).get pivot.1 (by omega)) ((s.xs).get x h)) ∧
-     (∀ (x : Nat), pivot.1 < x → x ≤ hi → (h : x < n) → ¬lt ((s.xs).get x h) ((s.xs).get pivot.1 (by omega))) ∧
+     (RangePred lo pivot.1 fun x => (h : x < n) → ¬lt ((s.xs).get pivot.1 (by omega)) ((s.xs).get x h)) ∧
+     (RangePred (pivot.1 + 1) (hi + 1) fun x => (h : x < n) → ¬lt ((s.xs).get x h) ((s.xs).get pivot.1 (by omega))) ∧
      Stable s.xs xs lo hi hlo hhi
    ⌝⦄ := by
-  sorries
   exists? mvar1
   exists? mvar2
   exists? mvar3
@@ -80,10 +79,10 @@ theorem sorted
   . ⇓ t => fun s =>
       let sp := t.1;
       let ⟨i, j⟩ := t.2;
-      ⌜(∀ (x : Nat), (?mvar03 i j) ≤ x → x < i → (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
+      ⌜(RangePred (?mvar03 i j) i fun x => (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
       -- ⌜(∀ (t : (x : Nat) ×' (?mvar03 i j) ≤ x ×' x < i ×' (hx : x < n) ×' ((?mvar01 i j) < n)), ¬ lt ((s.xs).get (?mvar01 i j) t.2.2.2.2) ((s.xs).get t.1 t.2.2.2.1))
       ∧
-      (∀ (x : Nat), i ≤ x → x < j → (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get (?mvar02 i j) hm))
+      (RangePred i j fun x => (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get (?mvar02 i j) hm))
       ∧
       (j = lo + sp.prefix.length)
       ∧
@@ -102,6 +101,7 @@ theorem sorted
     
     and_intros
     intros x
+    intros
     intros
     inst mvar3
       rw [Vector.swap.get_left]
@@ -132,6 +132,7 @@ theorem sorted
       omega
       ite j 
         apply lt_of_ne
+        apply Nat.le_of_lt_succ
         assumption
         apply ne_symm
         inst mvar4 assumption
@@ -179,6 +180,7 @@ theorem sorted
 
     intros x
     intros
+    intros
     rw [Vector.swap.get_other]
     rw [Vector.swap.get_other]
     apply hl
@@ -199,6 +201,7 @@ theorem sorted
 
     apply pred_range_extend
     intros x
+    intros
     intros
     . rw [Vector.swap.get_other]
       rw [Vector.swap.get_other]
@@ -234,6 +237,7 @@ theorem sorted
     inst mvar7 assumption
     apply pred_range_extend
     . intros x
+      intros
       intros
       apply hr
       omegas
