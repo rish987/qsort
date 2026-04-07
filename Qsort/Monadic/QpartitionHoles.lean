@@ -198,13 +198,20 @@ theorem sorted
     intros x
     intros
     intros
+
+    -- FIXME
+    rename_i hg _ _ _
+    rcases hg
+
     rw [Vector.swap.get_other]
     rw [Vector.swap.get_other]
+
     apply hl
+    and_intros
     assumption
     assumption
     apply ne_of_lt
-    nthassumption mvar9 3
+    nthassumption mvar9 1
     rotate_left 3 -- FIXME tactic to collectively defer all remaining goals in a .focus block not solved by `omega`
 
     inst mvar5 apply pred_range_single
@@ -220,15 +227,22 @@ theorem sorted
     intros x
     intros
     intros
+
+    -- FIXME
+    rename_i hg _ _ _
+    rcases hg
+
     . rw [Vector.swap.get_other]
       rw [Vector.swap.get_other]
       omegas
       apply hr
+      and_intros
       rename_i hp _ _ _ _
+      omega
       omegas
       rotate_right 1
       apply ne_of_lt
-      nthassumption mvar10 3
+      nthassumption mvar10 1
       omegas
     . inst mvar6 apply pred_range_single
       intros
@@ -268,19 +282,29 @@ theorem sorted
 
     and_intros
 
-    intros _ _ hm
-    intros
-    have := Nat.not_le_of_lt hm
-    false_or_by_contra
-    apply this
-    inst mvar14 assumption
+    . intros
 
-    intros _ _ hm
-    intros
-    have := Nat.not_le_of_lt hm
-    false_or_by_contra
-    apply this
-    inst mvar15 assumption
+      -- FIXME
+      rename_i hg _ _
+      rcases hg
+      rename_i hm
+
+      have := Nat.not_le_of_lt hm
+      false_or_by_contra
+      apply this
+      inst mvar14 assumption
+
+    . intros
+
+      -- FIXME
+      rename_i hg _ _
+      rcases hg
+      rename_i hm
+
+      have := Nat.not_le_of_lt hm
+      false_or_by_contra
+      apply this
+      inst mvar15 assumption
 
     omegas
 
