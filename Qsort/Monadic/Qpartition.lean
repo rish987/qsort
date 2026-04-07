@@ -70,8 +70,8 @@ theorem sorted
    qpartition lt lo hi hlo hhi hle
    ⦃⇓ pivot => fun s => ⌜
      Stable s.xs xs lo hi ∧
-     (RangePred lo pivot.1 fun i => (h : i < n) → ¬lt ((s.xs).get pivot.1 (by omega)) ((s.xs).get i h)) ∧
-     (RangePred (pivot.1 + 1) (hi + 1) fun i => (h : i < n) → ¬lt ((s.xs).get i h) ((s.xs).get pivot.1 (by omega)))⌝⦄ := by
+     (∀ i, Ranged i lo pivot.1 → (h : i < n) → ¬lt ((s.xs).get pivot.1 (by omega)) ((s.xs).get i h)) ∧
+     (∀ i, Ranged i (pivot.1 + 1) (hi + 1) → (h : i < n) → ¬lt ((s.xs).get i h) ((s.xs).get pivot.1 (by omega)))⌝⦄ := by
   -- FIXME could `mvcgen` attempt to auto-unfold definitions that it doesn't have a spec for?
   unfold qpartition
   -- mintro h
@@ -106,9 +106,9 @@ theorem sorted
   -- mspec
   smvcgen [qp_prep.stable] invariants
   . ⇓ (sp, ⟨i, j⟩) => fun s =>
-      ⌜RangePred lo i (fun x => (hx : x < n) → ¬ lt ((s.xs).get hi hhi) ((s.xs).get x hx))
+      ⌜(∀ x, Ranged x lo i → (hx : x < n) → ¬ lt ((s.xs).get hi hhi) ((s.xs).get x hx))
       ∧
-      RangePred i j (fun x => (hx : x < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get hi hhi))
+      (∀ x, Ranged x i j → (hx : x < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get hi hhi))
       ∧
       j = lo + sp.prefix.length
       ∧
@@ -128,8 +128,8 @@ theorem sorted
 
     and_intros
     omegas
+    intros x 
     apply pred_range_extend
-    intros x
     intros
     intros -- FIXME use a special theorem w/ RangePred to avoid this
     -- sorries
@@ -143,21 +143,27 @@ theorem sorted
       rw [Vector.swap.get_other]
       apply le_asymm
       omegas
-    apply pred_range_extend
-    intros x
-    intros
-    intros -- FIXME
-    . rw [Vector.swap.get_other]
-      rw [Vector.swap.get_other]
-      apply hr
-      omegas
-    . apply pred_range_single
+    . apply pred_range_extend
+      intros x
       intros
-      rw [Vector.swap.get_right]
-      rw [Vector.swap.get_other]
-      omegas
-      apply hr
-      omegas
+      intros -- FIXME
+      . rw [Vector.swap.get_other]
+        rw [Vector.swap.get_other]
+        apply hr
+        omegas
+        rename_i h _ _
+        unfold Ranged at h -- FIXME messy
+        cases h
+        unfold Ranged
+        and_intros
+        omegas
+      . apply pred_range_single
+        intros
+        rw [Vector.swap.get_right]
+        rw [Vector.swap.get_other]
+        omegas
+        apply hr
+        omegas
     . apply Vector.swap.stable
       omegas
 
@@ -197,7 +203,7 @@ theorem sorted
     and_intros
     rotate_left
     . intros
-      unfold RangePred -- FIXME
+      -- unfold RangePred -- FIXME
       intros
       intros -- FIXME
       rw [Vector.swap.get_left]
@@ -208,7 +214,9 @@ theorem sorted
     . apply Vector.swap.stable
       omegas
 
-    intros x _ _ _ -- FIXME
+    intros x -- FIXME
+    intros
+    intros
     rw [Vector.swap.get_left]
     ite x rw [Vector.swap.get_right]
     apply hr

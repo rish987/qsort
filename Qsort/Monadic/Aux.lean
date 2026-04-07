@@ -256,13 +256,27 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
       else
         false
 
+  trace[Meta.debug] s!"mvar: {mvar.name}"
   for decl in lctx do
     unless ← tryReplace decl do continue
     match decl with
       | .cdecl i fv n t b k =>
+        trace[Meta.debug] s!"type: {← ppExpr t}"
+        trace[Meta.debug] s!"real type: {t}"
+      | .ldecl i fv n t v b k =>
+        pure ()
+  for decl in lctx do
+    unless ← tryReplace decl do continue
+    match decl with
+      | .cdecl i fv n t b k =>
+        -- trace[Meta.debug] s!"type: {← ppExpr t}"
+        -- trace[Meta.debug] s!"real type: {t}"
         if let some mvarApp := getMVarApp? t then
+          -- trace[Meta.debug] s!"HERE 1"
           mvarApp? := some mvarApp
           break
+        -- else
+        --   -- trace[Meta.debug] s!"HERE 2"
       | .ldecl i fv n t v b k =>
         if let some mvarApp := getMVarApp? t then
           mvarApp? := some mvarApp

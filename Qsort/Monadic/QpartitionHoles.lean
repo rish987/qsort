@@ -47,8 +47,8 @@ theorem sorted
    ⦃fun s => ⌜s.xs = xs⌝⦄
    qpartition x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 lt lo hi hlo hhi hle
    ⦃⇓ pivot s => ⌜
-     (RangePred lo pivot.1 fun x => (h : x < n) → ¬lt ((s.xs).get pivot.1 (by omega)) ((s.xs).get x h)) ∧
-     (RangePred (pivot.1 + 1) (hi + 1) fun x => (h : x < n) → ¬lt ((s.xs).get x h) ((s.xs).get pivot.1 (by omega))) ∧
+     (∀ x, Ranged x lo pivot.1 → (h : x < n) → ¬lt ((s.xs).get pivot.1 (by omega)) ((s.xs).get x h)) ∧
+     (∀ x, Ranged x (pivot.1 + 1) (hi + 1) → (h : x < n) → ¬lt ((s.xs).get x h) ((s.xs).get pivot.1 (by omega))) ∧
      Stable s.xs xs lo hi hlo hhi
    ⌝⦄ := by
   exists? mvar1
@@ -79,10 +79,10 @@ theorem sorted
   . ⇓ t => fun s =>
       let sp := t.1;
       let ⟨i, j⟩ := t.2;
-      ⌜(RangePred (?mvar03 i j) i fun x => (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
+      ⌜(∀ x, Ranged x (?mvar03 i j) i → (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
       -- ⌜(∀ (t : (x : Nat) ×' (?mvar03 i j) ≤ x ×' x < i ×' (hx : x < n) ×' ((?mvar01 i j) < n)), ¬ lt ((s.xs).get (?mvar01 i j) t.2.2.2.2) ((s.xs).get t.1 t.2.2.2.1))
       ∧
-      (RangePred i j fun x => (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get (?mvar02 i j) hm))
+      (∀ x, Ranged x i j → (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get (?mvar02 i j) hm))
       ∧
       (j = lo + sp.prefix.length)
       ∧
@@ -115,20 +115,32 @@ theorem sorted
     -- sorry
     -- ^ FIXME get proof from program (last arg to last swap call)?
     -- (normally this would be done automatically w/ apply)
+    rename_i hg _
+    rcases hg -- FIXME would rather use cases, but this assigns mvar13?
     inst mvar01 apply hl
+    and_intros
     inst mvar03 omega
-    inst mvar13 omega
+    inst mvar13 assumption
     omega
     rotate_left
 
-    intros x _ _ _ -- FIXME
+    intros x
+    intros
+    intros
     rw [Vector.swap.get_left]
     ite x rw [Vector.swap.get_right]
     inst mvar02 apply hr
+    and_intros
     omega
     rotate_left 1
     . rw [Vector.swap.get_other]
       apply hr
+
+      -- FIXME
+      rename_i hg _
+      rcases hg
+
+      and_intros
       omega
       ite j 
         apply lt_of_ne
@@ -147,6 +159,11 @@ theorem sorted
       omega
       omega
     rotate_right
+
+    -- FIXME
+    rename_i hg _
+    rcases hg
+
     ite j assumption
     . false_or_by_contra -- FIXME
       apply h

@@ -52,13 +52,14 @@ def Stable (as bs : Vector α n) (lo hi : Nat) (hlo : lo < n := by omega) (hhi :
 def Perm (as bs : Vector α n) : Prop :=
   as.1.Perm bs.1
 
-abbrev RangePred (lo hi : Nat) (P : Nat → Prop ) : Prop := 
-  ∀ (i : Nat), lo ≤ i → i < hi → P i
+abbrev Ranged (x lo hi : Nat) : Prop := 
+  lo ≤ x ∧ x < hi
 
-theorem pred_range_single {P : Nat → Prop} (i : Nat) (h : P i) : RangePred i (i + 1) P := by
-  intros j
+theorem pred_range_single {P : Nat → Prop} (x : Nat) (h : P x) : ∀ y, Ranged y x (x + 1) → P y := by
+  unfold Ranged
+  intros y
   intros
-  have : i = j := by omega
+  have : x = y := by omega
   subst this
   assumption
 
@@ -74,15 +75,19 @@ theorem pred_range_single {P : Nat → Prop} (i : Nat) (h : P i) : RangePred i (
 --     omegas
 
 theorem pred_range_extend {P : Nat → Prop} (lo mid hi : Nat)
-   (h1 : RangePred lo mid fun j => j < hi → P j)
-   (h2 : RangePred mid hi fun j => lo ≤ j → P j) : RangePred lo hi P := by
-  intro j _ _
+   (h1 : ∀ y, Ranged y lo mid → y < hi → P y)
+   (h2 : ∀ y, Ranged y mid hi → lo ≤ y → P y) : ∀ y, Ranged y lo hi → P y := by
+  intro j _
   if _ : j < mid then
     apply h1
     omegas
+    -- unfold Ranged
+    -- omegas
   else
     apply h2
     omegas
+    -- unfold Ranged
+    -- omegas
 
 -- theorem pred_range_extend_tup' {P : Nat → Prop} {Q : Nat → Sort u} (lo mid hi : Nat)
 --    (h1 : ∀ t : ((j : Nat) ×' lo ≤ j ×' j < mid ×' j < hi ×' Q j), P t.1)

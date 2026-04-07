@@ -471,6 +471,52 @@ syntax (name := smvcgen) "smvcgen" optConfig
   (" [" withoutPosition((simpStar <|> simpErase <|> simpLemma),*,?) "] ")?
   (invariantAlts)? (vcAlts)? : tactic
 
+-- @[tactic_alt Lean.Parser.Tactic.smleaveMacro]
+macro (name := smleave) "smleave" : tactic =>
+  `(tactic| (try simp only [
+              $(mkIdent ``Std.Do.SPred.down_pure):term,
+              $(mkIdent ``Std.Do.SPred.apply_pure):term,
+              -- $(mkIdent ``Std.Do.SPred.entails_cons):term, -- Ineffective until #9015 lands
+              $(mkIdent ``Std.Do.SPred.entails_1):term,
+              $(mkIdent ``Std.Do.SPred.entails_2):term,
+              $(mkIdent ``Std.Do.SPred.entails_3):term,
+              $(mkIdent ``Std.Do.SPred.entails_4):term,
+              $(mkIdent ``Std.Do.SPred.entails_5):term,
+              $(mkIdent ``Std.Do.SPred.entails_nil):term,
+              $(mkIdent ``Std.Do.SPred.and_cons):term,
+              $(mkIdent ``Std.Do.SPred.and_nil):term,
+              $(mkIdent ``Std.Do.SPred.or_cons):term,
+              $(mkIdent ``Std.Do.SPred.or_nil):term,
+              $(mkIdent ``Std.Do.SPred.not_cons):term,
+              $(mkIdent ``Std.Do.SPred.not_nil):term,
+              $(mkIdent ``Std.Do.SPred.imp_cons):term,
+              $(mkIdent ``Std.Do.SPred.imp_nil):term,
+              $(mkIdent ``Std.Do.SPred.iff_cons):term,
+              $(mkIdent ``Std.Do.SPred.iff_nil):term,
+              $(mkIdent ``Std.Do.SPred.exists_cons):term,
+              $(mkIdent ``Std.Do.SPred.exists_nil):term,
+              $(mkIdent ``Std.Do.SPred.forall_cons):term,
+              $(mkIdent ``Std.Do.SPred.forall_nil):term,
+              $(mkIdent ``Std.Do.SVal.curry_cons):term,
+              $(mkIdent ``Std.Do.SVal.curry_nil):term,
+              $(mkIdent ``Std.Do.SVal.uncurry_cons):term,
+              $(mkIdent ``Std.Do.SVal.uncurry_nil):term,
+              $(mkIdent ``Std.Do.SVal.getThe_here):term,
+              $(mkIdent ``Std.Do.SVal.getThe_there):term,
+              $(mkIdent ``Std.Do.ExceptConds.entails.refl):term,
+              $(mkIdent ``Std.Do.ExceptConds.entails_true):term,
+              $(mkIdent ``Std.Do.ExceptConds.entails_false):term,
+              $(mkIdent ``ULift.down_ite):term,
+              $(mkIdent ``ULift.down_dite):term,
+              $(mkIdent ``List.Cursor.prefix_at):term,
+              $(mkIdent ``List.Cursor.suffix_at):term,
+              $(mkIdent ``List.Cursor.current_at):term,
+              $(mkIdent ``List.Cursor.tail_at):term,
+              $(mkIdent ``and_true):term,
+              $(mkIdent ``dite_eq_ite):term,
+              $(mkIdent ``exists_prop):term,
+              $(mkIdent ``true_implies):term] at *))
+
 @[tactic smvcgen]
 def elabSMVCGen : Tactic := fun stx => withMainContext do
   if mvcgen.warning.get (← getOptions) then
@@ -489,14 +535,14 @@ def elabSMVCGen : Tactic := fun stx => withMainContext do
     vcs.flatMapM fun vc => List.toArray <$> Term.withSynthesize do
       Tactic.run vc (Tactic.evalTactic tac *> Tactic.pruneSolvedGoals)
   let invariants ← Term.TermElabM.run' do
-    let invariants ← if ctx.config.leave then runOnVCs (← `(tactic| try mleave)) invariants else pure invariants
+    let invariants ← if ctx.config.leave then runOnVCs (← `(tactic| try smleave)) invariants else pure invariants
   trace[Elab.Tactic.Do.vcgen] "before elabInvariants {← (invariants ++ vcs).mapM fun m => m.getTag}"
   elabInvariants stx[3] invariants (suggestInvariant vcs)
   let invariants ← invariants.filterM (not <$> ·.isAssigned)
   trace[Elab.Tactic.Do.vcgen] "before trying trivial VCs {← (invariants ++ vcs).mapM fun m => m.getTag}"
   let vcs ← Term.TermElabM.run' do
     let vcs ← if ctx.config.trivial then runOnVCs (← `(tactic| try mvcgen_trivial)) vcs else pure vcs
-    let vcs ← if ctx.config.leave then runOnVCs (← `(tactic| try mleave)) vcs else pure vcs
+    let vcs ← if ctx.config.leave then runOnVCs (← `(tactic| try smleave)) vcs else pure vcs
     return vcs
   -- Eliminating lets here causes some metavariables in `mkFreshPair_triple` to become nonassignable
   -- so we don't do it. Presumably some weird delayed assignment thing is going on.
@@ -506,6 +552,7 @@ def elabSMVCGen : Tactic := fun stx => withMainContext do
   trace[Elab.Tactic.Do.vcgen] "before replacing main goal {← (invariants ++ vcs).mapM fun m => m.getTag}"
   replaceMainGoal (invariants ++ vcs).toList
   -- trace[Elab.Tactic.Do.vcgen] "replaced main goal, new: {← getGoals}"
+  --
   --
 
 @[inline] def test : StateM (ST α n) Nat := do
