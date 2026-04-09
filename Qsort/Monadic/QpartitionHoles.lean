@@ -3,6 +3,7 @@ import Qsort.AuxLemmas
 import Qsort.Monadic.Aux
 import Qsort.Monadic.Theory
 import Qsort.SDo.VCGen
+import Qsort.SMeta.Intro
 
 set_option mvcgen.warning false
 set_option pp.showLetValues true
@@ -79,7 +80,7 @@ theorem sorted
   . ⇓ t => fun s =>
       let sp := t.1;
       let ⟨i, j⟩ := t.2;
-      ⌜(∀ x, Ranged x (?mvar03 i j) i → (hx : x < n) → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
+      ⌜(∀ x, (hx : x < n) →  Ranged x (?mvar03 i j) i → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
       -- ⌜(∀ (t : (x : Nat) ×' (?mvar03 i j) ≤ x ×' x < i ×' (hx : x < n) ×' ((?mvar01 i j) < n)), ¬ lt ((s.xs).get (?mvar01 i j) t.2.2.2.2) ((s.xs).get t.1 t.2.2.2.1))
       ∧
       (∀ x, Ranged x i j → (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get (?mvar02 i j) hm))
@@ -188,7 +189,11 @@ theorem sorted
     rcases h with ⟨hl, hr, hj, _,  _⟩
 
     and_intros
-    apply pred_range_extend
+    set_option trace.Meta.debug true in
+    sintro x
+    -- intros x hx
+    . set_option trace.Meta.isDefEq true in
+      apply pred_range_extend
     -- rename_i b s _ _ _
     -- rcases b with ⟨i, j⟩
     -- dsimp
