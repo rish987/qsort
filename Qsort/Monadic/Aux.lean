@@ -230,7 +230,7 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
   let numHPs ← countHPs type 0
   -- trace[Meta.debug] s!"numHPs: {numHPs}, {type}"
   let lctx ← getLCtx
-  let target ← getMainTarget
+  let target ← instantiateMVars (← getMainTarget)
 
   let tryReplace decl := do
     let mut ret := false
@@ -309,11 +309,11 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
     let mut newCtx := (ctx)
     for decl in ctx do
       unless ← tryReplace decl do continue
-      let newDecl : LocalDecl := match decl with
+      let newDecl : LocalDecl ← match decl with
         | .cdecl i fv n t b k =>
-          .cdecl i fv n (repFn t) b k
+          pure $ .cdecl i fv n (repFn (← instantiateMVars t)) b k
         | .ldecl i fv n t v b k =>
-          .ldecl i fv n (repFn t) (repFn v) b k
+          pure $ .ldecl i fv n (repFn (← instantiateMVars t)) (repFn (← instantiateMVars v)) b k
       -- trace[Meta.debug] s!"DBG[39]: Aux.lean:185 {← ppExpr newDecl.type}"
       newCtx := newCtx.modifyLocalDecl newDecl.fvarId fun _ => newDecl
     pure newCtx

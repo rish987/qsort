@@ -4,6 +4,8 @@ import Qsort.Monadic.Aux
 import Qsort.Monadic.Theory
 import Qsort.SDo.VCGen
 import Qsort.SMeta.Intro
+import Qsort.SMeta.Revert
+import Qsort.SMeta.Apply
 
 set_option mvcgen.warning false
 set_option pp.showLetValues true
@@ -189,11 +191,16 @@ theorem sorted
     rcases h with ⟨hl, hr, hj, _,  _⟩
 
     and_intros
-    set_option trace.Meta.debug true in
-    sintro x
-    -- intros x hx
-    . set_option trace.Meta.isDefEq true in
-      apply pred_range_extend
+    -- set_option trace.Meta.debug true in
+    -- sintro x
+    intros x hx hg
+    srevert x -- FIXME specifying `x` should follow `sapply`
+    sapply pred_range_extend
+
+    -- FIXME better way?
+    rotate_left 2
+    assumption
+    rotate_right 2
     -- rename_i b s _ _ _
     -- rcases b with ⟨i, j⟩
     -- dsimp
@@ -219,7 +226,17 @@ theorem sorted
     nthassumption mvar9 1
     rotate_left 3 -- FIXME tactic to collectively defer all remaining goals in a .focus block not solved by `omega`
 
-    inst mvar5 apply pred_range_single
+    intro y
+    intro h
+
+    intros
+    srevert y
+    sapply pred_range_single
+
+    rotate_left 1
+    inst mvar5 assumption
+    rotate_right 1
+
     intros
     rw [Vector.swap.get_left]
     rw [Vector.swap.get_other]
@@ -260,6 +277,7 @@ theorem sorted
     . apply Vector.swap.stable
       omegas
 
+#exit
   . rename_i pref cur suff h' _ _ h _ 
     -- FIXME
     have hrng_dec_sz : (pref ++ cur :: suff).length = hi - lo := by
