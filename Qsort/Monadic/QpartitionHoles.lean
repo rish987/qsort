@@ -150,7 +150,8 @@ theorem sorted
         apply Nat.le_of_lt_succ
         assumption
         apply ne_symm
-        inst mvar4 assumption
+        inst mvar4
+          exact h
       . false_or_by_contra -- FIXME
         apply h
 
@@ -277,7 +278,6 @@ theorem sorted
     . apply Vector.swap.stable
       omegas
 
-#exit
   . rename_i pref cur suff h' _ _ h _ 
     -- FIXME
     have hrng_dec_sz : (pref ++ cur :: suff).length = hi - lo := by
@@ -308,7 +308,7 @@ theorem sorted
     . intros
 
       -- FIXME
-      rename_i hg _ _
+      rename_i hg _
       rcases hg
       rename_i hm
 
@@ -316,7 +316,6 @@ theorem sorted
       false_or_by_contra
       apply this
       inst mvar14 assumption
-
     . intros
 
       -- FIXME

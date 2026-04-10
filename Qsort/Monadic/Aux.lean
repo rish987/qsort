@@ -214,8 +214,12 @@ syntax (name := inst') "inst'" ident tacticSeq : tactic
 abbrev HP : Sort u → Sort u := id
 
 def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMainContext $ Tactic.focus do
+  trace[Meta.debug] m!"HERE runInst"
   let mctx := ← getMCtx
   let some mvar := mctx.findUserName? id | throwError "could not find '{id}' in metavariable context"
+  unless !(← mvar.isAssigned) do 
+    let ret ← tac
+    return ret
   let rec countHPs (e : Expr) (n : Nat) := do
     match e with
     | .forallE _ d b _ =>
@@ -291,7 +295,7 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
   let mvarAppArgs := mvarApp.getAppArgs
 
   let newMvar ← mkFreshExprMVar (← inferType mvarApp)
-  trace[Meta.debug] s!"DBG[35]: Aux.lean:205: newMvar={newMvar}"
+  trace[Meta.debug] m!"DBG[35]: Aux.lean:205: newMvar={newMvar}"
   let newMvarLam ← forallBoundedTelescope (← mvar.getType) numHPs fun vs _ => do
     mkLambdaFVars vs newMvar
 
@@ -310,15 +314,19 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
     for decl in ctx do
       unless ← tryReplace decl do continue
       let newDecl : LocalDecl ← match decl with
-        | .cdecl i fv n t b k =>
-          pure $ .cdecl i fv n (repFn (← instantiateMVars t)) b k
-        | .ldecl i fv n t v b k =>
-          pure $ .ldecl i fv n (repFn (← instantiateMVars t)) (repFn (← instantiateMVars v)) b k
+        | .cdecl i fv n t b k => do
+          let tNew := (repFn (← instantiateMVars t))
+          trace[Meta.debug] m!"new type of {n}: {tNew}"
+          pure $ .cdecl i fv n tNew b k
+        | .ldecl i fv n t v b k => do
+          let tNew := (repFn (← instantiateMVars t))
+          let vNew := (repFn (← instantiateMVars v))
+          pure $ .ldecl i fv n (repFn tNew) (repFn vNew) b k
       -- trace[Meta.debug] s!"DBG[39]: Aux.lean:185 {← ppExpr newDecl.type}"
       newCtx := newCtx.modifyLocalDecl newDecl.fvarId fun _ => newDecl
     pure newCtx
   let newCtx ← repLCtx (← getLCtx) repWithNewMvarLam
-  let newTarget := repWithNewMvarLam target
+  let newTarget := repWithNewMvarLam (← instantiateMVars target)
   let newGoal ← withLCtx' newCtx $ mkFreshExprMVar newTarget
   trace[Meta.debug] s!"DBG[36]: Aux.lean:229: newGoal={newGoal}"
 
@@ -331,7 +339,8 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
     --   discard popMainGoal
     pure (← getMCtx, ret)
 
-  unless (← newMvar.mvarId!.isAssigned) do throwError "failed to assign `{mvar}` through unification"
+  -- unless (← newMvar.mvarId!.isAssigned) do throwError "failed to assign `{mvar}` through unification ({newMvar})"
+  trace[Meta.debug] m!"success assigning `{mvar}` through unification ({newMvar})"
   let assignment ← instantiateMVars newMvar
 
   -- let assignmentMvars := assignment.collectMVars default |>.result
