@@ -15,6 +15,10 @@ open List
 
 namespace Monadic.Qpartition
 
+instance : LT (HP Nat) where
+  lt := Nat.lt
+-- #check (x : Nat) ×' (x > 1) ×' (x > 1)
+
 @[inline] def qpartition (x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 : HP Nat → HP Nat → Nat) (x14 : Nat) (x15 : HP Nat → Nat) 
     (lt : α → α → Bool) (lo hi : Nat) (hlo : lo < n) (hhi: hi < n) (hle : lo ≤ hi) :
     StateM (ST α n) $ {pivot : Nat // lo ≤ pivot ∧ pivot ≤ hi} := do
@@ -70,7 +74,9 @@ theorem sorted
   exists? mvar14
   exists? mvar15
 
-  mvar mvar01 : HP Nat → HP Nat → Nat -- loop invariant mvars
+  -- mvar mvar01 : HP Nat → HP Nat → Nat -- loop invariant mvars
+  mvar mvar01_01 : HP Nat → HP Nat → Type -- loop invariant mvars
+  mvar mvar01 : (i : HP Nat) → (j : HP Nat) → (t : HP (?mvar01_01 i j)) → Prop
   mvar mvar02 : HP Nat → HP Nat → Nat
   mvar mvar03 : HP Nat → HP Nat → Nat
   mvar mvar04 : HP Nat → HP Nat → Nat
@@ -82,7 +88,8 @@ theorem sorted
   . ⇓ t => fun s =>
       let sp := t.1;
       let ⟨i, j⟩ := t.2;
-      ⌜(∀ x, (hx : x < n) →  Ranged x (?mvar03 i j) i → (hm : (?mvar01 i j) < n) → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
+      ⌜(∀ (t : ?mvar01_01 i j), ?mvar01 i j t)
+      -- ⌜(∀ x, (hx : x < n) → (hm : (?mvar01 i j) < n) → Ranged x (?mvar03 i j) i → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
       -- ⌜(∀ (t : (x : Nat) ×' (?mvar03 i j) ≤ x ×' x < i ×' (hx : x < n) ×' ((?mvar01 i j) < n)), ¬ lt ((s.xs).get (?mvar01 i j) t.2.2.2.2) ((s.xs).get t.1 t.2.2.2.1))
       ∧
       (∀ x, Ranged x i j → (hx : x < n) → (hm : (?mvar02 i j) < n) → ¬ lt ((s.xs).get x hx) ((s.xs).get (?mvar02 i j) hm))
@@ -93,6 +100,7 @@ theorem sorted
       ∧
       (Stable s.xs xs lo hi hlo hhi)⌝
 
+  #exit
   case vc5.post.success.post.success =>
     rename_i r _ h
 
@@ -194,7 +202,7 @@ theorem sorted
     and_intros
     -- set_option trace.Meta.debug true in
     -- sintro x
-    intros x hx hg
+    intros x hx hm hg
     srevert x -- FIXME specifying `x` should follow `sapply`
     sapply pred_range_extend
 
@@ -213,7 +221,7 @@ theorem sorted
     intros
 
     -- FIXME
-    rename_i hg _ _ _
+    rename_i hg _ _
     rcases hg
 
     rw [Vector.swap.get_other]
@@ -308,7 +316,7 @@ theorem sorted
     . intros
 
       -- FIXME
-      rename_i hg _
+      rename_i hg
       rcases hg
       rename_i hm
 

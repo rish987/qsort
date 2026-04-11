@@ -213,6 +213,9 @@ syntax (name := inst') "inst'" ident tacticSeq : tactic
 -- marker for "hole parameters"
 abbrev HP : Sort u → Sort u := id
 
+-- marker for "hole parameter products"
+abbrev HPP : Sort u → Sort u := id
+
 def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMainContext $ Tactic.focus do
   trace[Meta.debug] m!"HERE runInst"
   let mctx := ← getMCtx
@@ -220,18 +223,20 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
   unless !(← mvar.isAssigned) do 
     let ret ← tac
     return ret
-  let rec countHPs (e : Expr) (n : Nat) := do
+  let rec countHPs (e : Expr) (n : Nat) (b : Bool) := do
     match e with
-    | .forallE _ d b _ =>
+    | .forallE _ d bod _ =>
       if d.isAppOf ``HP then
-        countHPs b (n + 1)
+        countHPs bod (n + 1) b
+      else if d.isAppOf ``HPP then
+        countHPs bod n true
       else
-        pure n
+        pure (n, b)
     | _ => 
-      pure n
+      pure (n, b)
   let type ← mvar.getType
   let mvarLCtx := (← mvar.getDecl).lctx
-  let numHPs ← countHPs type 0
+  let (numHPs, hasHPP) ← countHPs type 0 false
   -- trace[Meta.debug] s!"numHPs: {numHPs}, {type}"
   let lctx ← getLCtx
   let target ← instantiateMVars (← getMainTarget)
@@ -251,7 +256,7 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
     e.find? fun sube =>
       if let .mvar id .. := sube.getAppFn then
         if id == mvar then
-          if sube.getAppArgs.size == numHPs then
+          if sube.getAppArgs.size == numHPs + (if hasHPP then 1 else 0) then
             true
           else
             false
@@ -292,7 +297,7 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
     mvarApp? := getMVarApp? target
 
   let some mvarApp := mvarApp? | throwError "no instance of `{Expr.mvar mvar} [{numHPs} args]` found in proof state"
-  let mvarAppArgs := mvarApp.getAppArgs
+  let mvarAppArgs := mvarApp.getAppArgs[0:numHPs].toArray
 
   let newMvar ← mkFreshExprMVar (← inferType mvarApp)
   trace[Meta.debug] m!"DBG[35]: Aux.lean:205: newMvar={newMvar}"
@@ -410,9 +415,29 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
         if e == arg then
           fvar
         else none
-    let val ← mkLambdaFVars vs absAssignment
+    let mut val := default
+    if hasHPP then
+      let prodArg := mvarApp.getAppArgs[numHPs]!
+      unless prodArg.isMVar do throwError "expected metavar for product hole argument"
+      unless not (← prodArg.mvarId!.isAssigned) do throwError "expected product hole argument metavar to be unassigned"
+      let prodArgType ← prodArg.mvarId!.getType
+      unless prodArgType.getAppFn.isMVar do throwError "expected metavar for product hole argument type"
+      unless not (← prodArgType.getAppFn.mvarId!.isAssigned) do throwError "expected product hole argument type metavar to be unassigned"
+      let (_, s) ← absAssignment.collectFVars |>.run default
+      let fvars ← collectForwardDeps (s.fvarIds.map (.fvar ·)) false
+      let fvars := fvars.filter (fun fv => not (mvarLCtx.contains fv.fvarId!))
+
+      -- TODO assign prodArgType to depndent Sigma type encapsulating fvars types (in order)
+      -- TODO assign prodArg to tuple of fvars
+      -- TODO add new fvar to context with type prodArgType
+      -- TODO subst instances of fvars in absAssignment with corresponding projections of new fvar
+
+      -- val ← mkLambdaFVars (vs ++ #[newFv])  absAssignment -- TODO
+    else
+      val ← mkLambdaFVars vs absAssignment
+
     try
-      mvar.assign val
+      _ ← isDefEq (.mvar mvar) val
       trace[Meta.debug] s!"assigned {mvar.name} := {val}"
     catch _ =>
       throwError  "assignment `{mvar} := {← ppExpr val}` failed (from application {mvarAppArgs})"
