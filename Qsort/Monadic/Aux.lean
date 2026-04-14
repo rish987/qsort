@@ -210,6 +210,15 @@ syntax (name := inst) "inst" ident tacticSeq : tactic
 
 syntax (name := inst') "inst'" ident tacticSeq : tactic
 
+def duplicateMVar' (m : MVarId) (t : Expr) : MetaM MVarId := do
+  let d ← m.getDecl
+  let e ← mkFreshExprMVarAt d.lctx d.localInstances t d.kind d.userName d.numScopeArgs
+  return e.mvarId!
+
+def duplicateMVar (m : MVarId) : MetaM MVarId := do
+  let d ← m.getDecl
+  duplicateMVar' m d.type
+
 -- marker for "hole parameters"
 abbrev HP : Sort u → Sort u := id
 
@@ -406,33 +415,81 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
         }
         userNames := if name.isAnonymous then mctx.userNames else mctx.userNames.insert name newId }
         -- mctx.addExprMVarDecl (mvarId : MVarId) (userName : Name) (lctx : LocalContext) (localInstances : LocalInstances) (type : Expr) (kind : MetavarKind := MetavarKind.natural) (numScopeArgs : Nat := 0) : MetavarContext :=
+  let absArgs args fvs e := do
+    let mut ret := e
+    for (arg, fv) in args.zip fvs do
+      ret := ret.replace fun e =>
+        if e == arg then
+          fv
+        else none
+    pure ret
 
   let repAssignment := rep assignment
   forallBoundedTelescope (← mvar.getType) numHPs fun vs _ => do
-    let mut absAssignment := repAssignment
-    for (arg, fvar) in mvarAppArgs.zip vs do
-      absAssignment := absAssignment.replace fun e =>
-        if e == arg then
-          fvar
-        else none
+    let absAssignment ← absArgs mvarAppArgs vs repAssignment
     let mut val := default
     if hasHPP then
       let prodArg := mvarApp.getAppArgs[numHPs]!
       unless prodArg.isMVar do throwError "expected metavar for product hole argument"
-      unless not (← prodArg.mvarId!.isAssigned) do throwError "expected product hole argument metavar to be unassigned"
-      let prodArgType ← prodArg.mvarId!.getType
+      let prodArgMVar := prodArg.mvarId!
+      unless not (← prodArgMVar.isAssigned) do throwError "expected product hole argument metavar to be unassigned"
+
+      let prodArgType ← prodArgMVar.getType
+      let prodArgTypeArgs := prodArgType.getAppArgs
       unless prodArgType.getAppFn.isMVar do throwError "expected metavar for product hole argument type"
-      unless not (← prodArgType.getAppFn.mvarId!.isAssigned) do throwError "expected product hole argument type metavar to be unassigned"
+      let prodArgTypeMvar := prodArgType.getAppFn.mvarId!
+      unless not (← prodArgTypeMvar.isAssigned) do throwError "expected product hole argument type metavar to be unassigned"
+
       let (_, s) ← absAssignment.collectFVars |>.run default
       let fvars ← collectForwardDeps (s.fvarIds.map (.fvar ·)) false
       let fvars := fvars.filter (fun fv => not (mvarLCtx.contains fv.fvarId!))
 
-      -- TODO assign prodArgType to depndent Sigma type encapsulating fvars types (in order)
-      -- TODO assign prodArg to tuple of fvars
-      -- TODO add new fvar to context with type prodArgType
-      -- TODO subst instances of fvars in absAssignment with corresponding projections of new fvar
+      let newRemProdArgTypeMVar ← duplicateMVar prodArgTypeMvar
+      let newRemProdArgType := mkAppN (.mvar newRemProdArgTypeMVar) prodArgType.getAppArgs
+      let newRemProdArgMVar ← duplicateMVar' prodArg.mvarId! newRemProdArgType
+      let newRemProdArg := .mvar newRemProdArgMVar
 
-      -- val ← mkLambdaFVars (vs ++ #[newFv])  absAssignment -- TODO
+      let (newProdArgType, newProdArg) ← fvars.foldrM (init := (newRemProdArgType, newRemProdArg)) fun fv (p, pa) => do
+        let fvT ← inferType fv
+        let fvTT ← (whnf (← inferType fvT))
+        let fvTTl := fvTT.sortLevel!
+
+        let pT ← inferType p -- note: should always be Type
+        -- let pTT ← (whnf (← inferType pT))
+        let pTl := pT.sortLevel!
+        
+        let lam ← mkLambdaFVars #[fv] pT
+
+        let newP := mkAppN (mkConst (``PSigma) [fvTTl, pTl]) #[fvTT, lam]
+
+        let newPa := mkAppN (mkConst (``PSigma.mk) [fvTTl, pTl]) #[fvTT, lam, fv, pa]
+        pure (newP, newPa)
+
+      let (numHPs', _) ← countHPs (← prodArgTypeMvar.getType) 0 false
+      forallBoundedTelescope (← prodArgTypeMvar.getType) numHPs' fun vs _ => do
+        let absType ← absArgs prodArgTypeArgs vs newProdArgType
+        prodArgTypeMvar.assign (← mkLambdaFVars vs absType)
+
+      prodArgMVar.assign newProdArg
+
+      let prodFvarId ← mkFreshFVarId
+      let newLctx  := (← getLCtx).mkLocalDecl prodFvarId default newProdArgType
+      let prodFvar  := mkFVar prodFvarId
+      
+      let rec indexTuple (t : Expr) (i : Nat) : Expr :=
+        match i with
+        | .zero => .proj default 0 t
+        | .succ i' => indexTuple (.proj default 1 t)  i'
+
+      let newAbsAssignment := absAssignment.replace fun e =>
+        if let .fvar _ := e then
+          if let some idx := fvars.idxOf? e then
+            indexTuple prodFvar idx
+          else none
+        else none
+
+      val ← withLCtx' newLctx do
+        mkLambdaFVars (vs ++ #[prodFvar]) newAbsAssignment -- TODO
     else
       val ← mkLambdaFVars vs absAssignment
 

@@ -76,7 +76,7 @@ theorem sorted
 
   -- mvar mvar01 : HP Nat → HP Nat → Nat -- loop invariant mvars
   mvar mvar01_01 : HP Nat → HP Nat → Type -- loop invariant mvars
-  mvar mvar01 : (i : HP Nat) → (j : HP Nat) → (t : HP (?mvar01_01 i j)) → Prop
+  mvar mvar01 : (i : HP Nat) → (j : HP Nat) → (t : HPP (?mvar01_01 i j)) → Prop
   mvar mvar02 : HP Nat → HP Nat → Nat
   mvar mvar03 : HP Nat → HP Nat → Nat
   mvar mvar04 : HP Nat → HP Nat → Nat
