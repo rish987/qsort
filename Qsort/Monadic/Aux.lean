@@ -226,7 +226,7 @@ abbrev HP : Sort u → Sort u := id
 abbrev HPP : Sort u → Sort u := id
 
 def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMainContext $ Tactic.focus do
-  trace[Meta.debug] m!"HERE runInst"
+  -- trace[Meta.debug] m!"HERE runInst"
   let mctx := ← getMCtx
   let some mvar := mctx.findUserName? id | throwError "could not find '{id}' in metavariable context"
   unless !(← mvar.isAssigned) do 
@@ -246,6 +246,7 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
   let type ← mvar.getType
   let mvarLCtx := (← mvar.getDecl).lctx
   let (numHPs, hasHPP) ← countHPs type 0 false
+  let numArgs := numHPs + (if hasHPP then 1 else 0)
   -- trace[Meta.debug] s!"numHPs: {numHPs}, {type}"
   let lctx ← getLCtx
   let target ← instantiateMVars (← getMainTarget)
@@ -265,8 +266,13 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
     e.find? fun sube =>
       if let .mvar id .. := sube.getAppFn then
         if id == mvar then
-          if sube.getAppArgs.size == numHPs + (if hasHPP then 1 else 0) then
-            true
+          if sube.getAppArgs.size == numArgs then
+            if sube.hasAnyFVar fun fv => not (lctx.contains fv) then -- TODO not needed?
+              false
+            else if sube.hasLooseBVars then
+              false
+            else
+              true
           else
             false
         else
@@ -274,15 +280,15 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
       else
         false
 
-  trace[Meta.debug] s!"mvar: {mvar.name}"
-  for decl in lctx do
-    unless ← tryReplace decl do continue
-    match decl with
-      | .cdecl i fv n t b k =>
-        trace[Meta.debug] s!"type: {← ppExpr t}"
-        trace[Meta.debug] s!"real type: {t}"
-      | .ldecl i fv n t v b k =>
-        pure ()
+  -- trace[Meta.debug] s!"mvar: {mvar.name}"
+  -- for decl in lctx do
+  --   unless ← tryReplace decl do continue
+  --   match decl with
+  --     | .cdecl i fv n t b k =>
+  --       -- trace[Meta.debug] s!"type: {← ppExpr t}"
+  --       -- trace[Meta.debug] s!"real type: {t}"
+  --     | .ldecl i fv n t v b k =>
+  --       pure ()
   for decl in lctx do
     unless ← tryReplace decl do continue
     match decl with
@@ -306,11 +312,12 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
     mvarApp? := getMVarApp? target
 
   let some mvarApp := mvarApp? | throwError "no instance of `{Expr.mvar mvar} [{numHPs} args]` found in proof state"
+  trace[Meta.debug] m!"mvarApp: {mvarApp}, {mvarApp.hasLooseBVars}"
   let mvarAppArgs := mvarApp.getAppArgs[0:numHPs].toArray
 
   let newMvar ← mkFreshExprMVar (← inferType mvarApp)
-  trace[Meta.debug] m!"DBG[35]: Aux.lean:205: newMvar={newMvar}"
-  let newMvarLam ← forallBoundedTelescope (← mvar.getType) numHPs fun vs _ => do
+  -- trace[Meta.debug] m!"DBG[35]: Aux.lean:205: newMvar={newMvar}"
+  let newMvarLam ← forallBoundedTelescope (← mvar.getType) numArgs fun vs _ => do
     mkLambdaFVars vs newMvar
 
   let repWithNewMvarLam e : Expr :=
@@ -330,7 +337,7 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
       let newDecl : LocalDecl ← match decl with
         | .cdecl i fv n t b k => do
           let tNew := (repFn (← instantiateMVars t))
-          trace[Meta.debug] m!"new type of {n}: {tNew}"
+          -- trace[Meta.debug] m!"new type of {n}: {tNew}"
           pure $ .cdecl i fv n tNew b k
         | .ldecl i fv n t v b k => do
           let tNew := (repFn (← instantiateMVars t))
@@ -342,7 +349,7 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
   let newCtx ← repLCtx (← getLCtx) repWithNewMvarLam
   let newTarget := repWithNewMvarLam (← instantiateMVars target)
   let newGoal ← withLCtx' newCtx $ mkFreshExprMVar newTarget
-  trace[Meta.debug] s!"DBG[36]: Aux.lean:229: newGoal={newGoal}"
+  -- trace[Meta.debug] s!"DBG[36]: Aux.lean:229: newGoal={newGoal}"
 
   let state ← saveState
   pushGoal newGoal.mvarId!

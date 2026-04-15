@@ -218,10 +218,40 @@ def _root_.Lean.MVarId.sapply (mvarId : MVarId) (e : Expr) (cfg : ApplyConfig :=
     result.forM (·.headBetaType)
     return result
 
+def _root_.Lean.MVarId.smapply (mvarId : MVarId) (e : Expr) (cfg : ApplyConfig := {})
+    (term? : Option MessageData := none) : MetaM (List MVarId) :=
+  mvarId.withContext do
+    trace[Meta.isDefEq] m!"smapply {e}"
+    mvarId.checkNotAssigned `smapply
+    let targetType ← mvarId.getType
+    let eType      ← inferType e
+    let (numArgs, _) ← getExpectedNumArgsAux eType
+    trace[Meta.isDefEq] m!"smapply 2"
+    let rec go : MetaM (Array Expr × Array BinderInfo) := do
+      trace[Meta.isDefEq] m!"smapply 3"
+      let s ← saveState
+      let (newMVars, binderInfos, eType) ← forallMetaTelescopeReducing eType numArgs
+      trace[Meta.isDefEq] m!"smapply 4"
+      let newMvarId ← mvarId.assert default eType (mkAppN e newMVars)
+      let (_, newMvarId) ← newMvarId.intro1 default
+      return (newMVars.insertIdx 0 (Expr.mvar newMvarId), binderInfos)
+    let (newMVars, binderInfos) ← go
+    postprocessAppMVars `smapply mvarId newMVars binderInfos cfg.synthAssignedInstances cfg.allowSynthFailures
+    let e ← instantiateMVars e
+    mvarId.assign (mkAppN e newMVars)
+    let newMVars ← newMVars.filterM fun mvar => not <$> mvar.mvarId!.isAssigned
+    let otherMVarIds ← getMVarsNoDelayed e
+    let newMVarIds ← reorderGoals newMVars cfg.newGoals
+    let otherMVarIds := otherMVarIds.filter fun mvarId => !newMVarIds.contains mvarId
+    let result := newMVarIds ++ otherMVarIds.toList
+    result.forM (·.headBetaType)
+    return result
+
 end Lean.SMeta
 
 namespace Lean.Parser.Tactic
 syntax (name := sapply) "sapply " term : tactic
+syntax (name := smapply) "smapply " term : tactic
 end Lean.Parser.Tactic
 
 namespace Lean.Elab.Tactic
@@ -233,5 +263,13 @@ open Parser.Tactic
   | `(tactic| sapply $t) => evalApplyLikeTactic (fun g e =>
       withConfig (fun ctx => {ctx with constApprox := true}) do
         g.sapply e (term? := some m!"`{e}`"
+    )) t
+  | _ => throwUnsupportedSyntax
+
+@[tactic Lean.Parser.Tactic.smapply] def evalSMApply : Tactic := fun stx =>
+  match stx with
+  | `(tactic| smapply $t) => evalApplyLikeTactic (fun g e =>
+      withConfig (fun ctx => {ctx with constApprox := true}) do
+        g.smapply e (term? := some m!"`{e}`"
     )) t
   | _ => throwUnsupportedSyntax

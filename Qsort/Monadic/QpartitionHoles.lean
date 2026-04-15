@@ -100,7 +100,6 @@ theorem sorted
       ∧
       (Stable s.xs xs lo hi hlo hhi)⌝
 
-  #exit
   case vc5.post.success.post.success =>
     rename_i r _ h
 
@@ -128,7 +127,11 @@ theorem sorted
     -- (normally this would be done automatically w/ apply)
     rename_i hg _
     rcases hg -- FIXME would rather use cases, but this assigns mvar13?
-    inst mvar01 apply hl
+    smapply hl
+    rename_i h
+    set_option trace.Meta.debug true in
+    inst mvar01 exact h
+    #exit
     and_intros
     inst mvar03 omega
     inst mvar13 assumption
