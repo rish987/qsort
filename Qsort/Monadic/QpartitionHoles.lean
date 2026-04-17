@@ -44,6 +44,7 @@ theorem test (a b : Nat) (h : a < b) (h' : b ≤ a) : False := by omega
 
 namespace qpartition
 
+set_option pp.rawOnError true
 -- set_option trace.Elab.Tactic.Do.vcgen true in
 theorem sorted 
    (le_asymm : ∀ {{a b}}, lt a b → ¬lt b a)
@@ -75,8 +76,8 @@ theorem sorted
   exists? mvar15
 
   -- mvar mvar01 : HP Nat → HP Nat → Nat -- loop invariant mvars
-  mvar mvar01_01 : HP Nat → HP Nat → Type -- loop invariant mvars
-  mvar mvar01 : (i : HP Nat) → (j : HP Nat) → (t : HPP (?mvar01_01 i j)) → Prop
+  mvar mvar01_01 : HP Nat → HP Nat → (s : HP (ST α n)) → Type -- loop invariant mvars
+  mvar mvar01 : (i : HP Nat) → (j : HP Nat) → (s : HP (ST α n)) → (t : HPP (?mvar01_01 i j s)) → Prop
   mvar mvar02 : HP Nat → HP Nat → Nat
   mvar mvar03 : HP Nat → HP Nat → Nat
   mvar mvar04 : HP Nat → HP Nat → Nat
@@ -88,7 +89,7 @@ theorem sorted
   . ⇓ t => fun s =>
       let sp := t.1;
       let ⟨i, j⟩ := t.2;
-      ⌜(∀ (t : ?mvar01_01 i j), ?mvar01 i j t)
+      ⌜(∀ (t : ?mvar01_01 i j s), ?mvar01 i j s t)
       -- ⌜(∀ x, (hx : x < n) → (hm : (?mvar01 i j) < n) → Ranged x (?mvar03 i j) i → ¬ lt ((s.xs).get (?mvar01 i j) hm) ((s.xs).get x hx))
       -- ⌜(∀ (t : (x : Nat) ×' (?mvar03 i j) ≤ x ×' x < i ×' (hx : x < n) ×' ((?mvar01 i j) < n)), ¬ lt ((s.xs).get (?mvar01 i j) t.2.2.2.2) ((s.xs).get t.1 t.2.2.2.1))
       ∧
@@ -129,8 +130,10 @@ theorem sorted
     rcases hg -- FIXME would rather use cases, but this assigns mvar13?
     smapply hl
     rename_i h
+    set_option pp.proofs true in
     set_option trace.Meta.debug true in
-    inst mvar01 exact h
+    .
+      inst mvar01 exact h
     #exit
     and_intros
     inst mvar03 omega

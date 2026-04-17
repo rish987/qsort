@@ -1,5 +1,6 @@
 import Qsort.Monadic.Simp
 import Qsort.Monadic.MVarDeps
+import Qsort.Monadic.FVarDeps
 import Std.Tactic.Do
 import Init.Tactics
 import Lean.Elab.Tactic.Basic
@@ -432,6 +433,7 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
     pure ret
 
   let repAssignment := rep assignment
+  trace[Meta.debug] m!"HERE 1: {repAssignment}"
   forallBoundedTelescope (← mvar.getType) numHPs fun vs _ => do
     let absAssignment ← absArgs mvarAppArgs vs repAssignment
     let mut val := default
@@ -440,6 +442,7 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
       unless prodArg.isMVar do throwError "expected metavar for product hole argument"
       let prodArgMVar := prodArg.mvarId!
       unless not (← prodArgMVar.isAssigned) do throwError "expected product hole argument metavar to be unassigned"
+      trace[Meta.debug] m!"HERE 2: {absAssignment}"
 
       let prodArgType ← prodArgMVar.getType
       let prodArgTypeArgs := prodArgType.getAppArgs
@@ -447,14 +450,25 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
       let prodArgTypeMvar := prodArgType.getAppFn.mvarId!
       unless not (← prodArgTypeMvar.isAssigned) do throwError "expected product hole argument type metavar to be unassigned"
 
-      let (_, s) ← absAssignment.collectFVars |>.run default
-      let fvars ← collectForwardDeps (s.fvarIds.map (.fvar ·)) false
-      let fvars := fvars.filter (fun fv => not (mvarLCtx.contains fv.fvarId!))
-
+      let mut fvars := absAssignment.foldFVars (init := #[]) fun fv fvs =>
+        if not (fvs.contains (.fvar fv)) then
+          fvs.insertIdx 0 (.fvar fv)
+        else
+          fvs
+      trace[Meta.debug] m!"HERE _3: {← fvars.mapM (ppExpr ·)}"
+      fvars := fvars.filter (fun fv => (not (mvarLCtx.contains fv.fvarId!)) && (not (vs.contains fv)))
+      trace[Meta.debug] m!"HERE 3_: {fvars}"
+      fvars := (← getFVarArrDependencies (fvars.map (·.fvarId!))).toArray |>.map (.fvar ·)
+      fvars := fvars.filter (fun fv => (not (mvarLCtx.contains fv.fvarId!)) && (not (vs.contains fv)))
+      trace[Meta.debug] m!"HERE 3__: {fvars}"
+      -- fvars := fvars.filter (fun fv => (not (mvarLCtx.contains fv.fvarId!)) && (not (vs.contains fv)))
+      -- trace[Meta.debug] m!"HERE 3_: {fvars.filter (fun fv => (not (mvarLCtx.contains fv.fvarId!)) && (not (vs.contains fv)))}"
+      trace[Meta.debug] m!"HERE 3: {← fvars.mapM (ppExpr ·)}"
       let newRemProdArgTypeMVar ← duplicateMVar prodArgTypeMvar
       let newRemProdArgType := mkAppN (.mvar newRemProdArgTypeMVar) prodArgType.getAppArgs
       let newRemProdArgMVar ← duplicateMVar' prodArg.mvarId! newRemProdArgType
       let newRemProdArg := .mvar newRemProdArgMVar
+      if false then
 
       let (newProdArgType, newProdArg) ← fvars.foldrM (init := (newRemProdArgType, newRemProdArg)) fun fv (p, pa) => do
         let fvT ← inferType fv
@@ -471,6 +485,7 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
 
         let newPa := mkAppN (mkConst (``PSigma.mk) [fvTTl, pTl]) #[fvTT, lam, fv, pa]
         pure (newP, newPa)
+      trace[Meta.debug] m!"HERE 4: {newProdArgType}, {newProdArg}"
 
       let (numHPs', _) ← countHPs (← prodArgTypeMvar.getType) 0 false
       forallBoundedTelescope (← prodArgTypeMvar.getType) numHPs' fun vs _ => do
@@ -483,6 +498,8 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
       let newLctx  := (← getLCtx).mkLocalDecl prodFvarId default newProdArgType
       let prodFvar  := mkFVar prodFvarId
       
+      trace[Meta.debug] s!"HERE 5"
+
       let rec indexTuple (t : Expr) (i : Nat) : Expr :=
         match i with
         | .zero => .proj default 0 t
@@ -495,18 +512,25 @@ def runInst (id : Name) (tac : TacticM α) (rerun : Bool) : TacticM α := withMa
           else none
         else none
 
+      trace[Meta.debug] s!"HERE 6"
+
       val ← withLCtx' newLctx do
         mkLambdaFVars (vs ++ #[prodFvar]) newAbsAssignment -- TODO
     else
       val ← mkLambdaFVars vs absAssignment
 
     try
+      trace[Meta.debug] s!"HERE 7"
       _ ← isDefEq (.mvar mvar) val
-      trace[Meta.debug] s!"assigned {mvar.name} := {val}"
+      trace[Meta.debug] s!"HERE 8"
+      trace[Meta.debug] m!"assigned {mvar.name} := {val}"
     catch _ =>
       throwError  "assignment `{mvar} := {← ppExpr val}` failed (from application {mvarAppArgs})"
   if rerun then
-    tac
+    trace[Meta.debug] s!"HERE 9"
+    let ret ← tac
+    trace[Meta.debug] s!"HERE 10"
+    pure ret
   else
     pure ret
 
